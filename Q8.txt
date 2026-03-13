@@ -1,0 +1,67 @@
+Rendering a Boot Logo in EDK II
+Code Flow Explanation
+1. Introduction
+In EDK II, the boot logo is displayed during the BDS (Boot Device Selection) phase of the UEFI boot process. The logo is not loaded from the filesystem at runtime. Instead, it is embedded into the firmware image during the build process and later rendered using UEFI graphics protocols.
+2. How the Boot Logo Is Included in Firmware
+The default boot logo is located at:
+MdeModulePkg/Logo/Logo.bmp
+During the build process, this BMP file is packaged into the firmware volume using the FDF file configuration.
+This means:
+•	The BMP image is added as a RAW section.
+•	The image becomes part of the firmware binary (OVMF.fd).
+Therefore, replacing Logo.bmp and rebuilding the firmware is sufficient to change the boot logo.
+3. Boot Logo Rendering Code Flow
+The logo rendering happens during system boot in the following sequence:
+Step 1: Boot Process Reaches BDS Phase
+After the SEC, PEI, and DXE phases complete, control enters the BDS phase.
+The entry point is:
+BdsEntry()  →  MdeModulePkg/Universal/BdsDxe/BdsEntry.c
+Step 2: Platform Boot Manager Initialization
+During BDS execution, the function:
+PlatformBootManagerBeforeConsole()
+is called.
+Inside this function, BootLogoLib is invoked to display the logo before the console is fully initialized.
+Step 3: BootLogoLib Locates the Embedded Logo
+BootLogoLib searches the firmware volume for the RAW section.
+This GUID corresponds to the embedded Logo.bmp that was packaged during build time.
+The image is loaded directly from firmware memory — not from disk.
+Step 4: BMP Image Conversion
+The BMP image cannot be drawn directly to the screen.
+BootLogoLib calls a function from BmpSupportLib:
+TranslateBmpToGopBlt()
+This function:
+•	Reads the BMP header
+•	Extracts pixel data
+•	Converts it into EFI_GRAPHICS_OUTPUT_BLT_PIXEL format
+This conversion makes the image compatible with the Graphics Output Protocol.
+Step 5: Drawing the Logo on the Screen
+BootLogoLib locates the:
+EFI_GRAPHICS_OUTPUT_PROTOCOL (GOP)
+using:
+gBS->LocateProtocol()
+The actual rendering is performed using:
+Gop->Blt()
+The Blt() function copies the pixel buffer to the video frame buffer, making the logo visible on the screen.
+4. Protocols Responsible for Drawing the Image
+The main protocol responsible for displaying the logo is:
+EFI_GRAPHICS_OUTPUT_PROTOCOL (GOP)
+Responsibilities:
+•	Provides access to video hardware
+•	Performs pixel drawing operations
+•	Handles Blt() (Block Transfer) operations
+Additionally:
+EFI_BOOT_LOGO_PROTOCOL
+•	Stores information about the displayed logo
+•	Tracks logo position and size
+However, the actual drawing is performed by the Graphics Output Protocol.
+5.Complete Boot Logo Rendering Flow
+The complete flow can be summarized as:
+1.	Logo.bmp is embedded into firmware during build.
+2.	System boots and enters BDS phase.
+3.	PlatformBootManagerBeforeConsole() calls BootLogoLib.
+4.	BootLogoLib locates the embedded BMP using GUID.
+5.	BMP is converted to GOP-compatible format.
+6.	EFI_GRAPHICS_OUTPUT_PROTOCOL->Blt() renders the image.
+7.	The boot logo appears on the screen.
+6. Conclusion
+In EDK II, the boot logo is embedded into the firmware image during build time and rendered during the BDS phase using BootLogoLib and the Graphics Output Protocol. Replacing MdeModulePkg/Logo/Logo.bmp and rebuilding the firmware is sufficient to customize the boot logo, as this file is the one referenced in the firmware description file (FDF).

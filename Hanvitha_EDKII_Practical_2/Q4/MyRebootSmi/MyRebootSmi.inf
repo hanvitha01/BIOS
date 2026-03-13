@@ -1,0 +1,29 @@
+[Defines]
+  INF_VERSION              = 0x0001001A
+  BASE_NAME                = SmmSwReboot
+  FILE_GUID                = B07E1EE6-762A-406D-9092-675CA9B5CA23
+  MODULE_TYPE              = DXE_SMM_DRIVER
+  PI_SPECIFICATION_VERSION = 0x0001000A
+  ENTRY_POINT              = InstallSmmResetHandler
+
+[Sources]
+  MyRebootSmi.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  OvmfPkg/OvmfPkg.dec
+
+[LibraryClasses]
+  UefiDriverEntryPoint   
+  SmmServicesTableLib
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  IoLib
+
+[Protocols]
+  gEfiSmmSwDispatch2ProtocolGuid
+
+[Depex]
+  gEfiSmmSwDispatch2ProtocolGuid

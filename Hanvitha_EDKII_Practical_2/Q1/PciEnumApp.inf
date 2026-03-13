@@ -1,0 +1,25 @@
+[Defines]
+  INF_VERSION    = 0x00010019
+  BASE_NAME      = PciEnumApp
+  FILE_GUID      = 6CFBAE49-8CAD-4DFC-8B7F-2F95404977A2
+  MODULE_TYPE    = UEFI_APPLICATION
+  VERSION_STRING = 1.0
+  ENTRY_POINT    = UefiMain
+
+[Sources]
+  PciEnumApp.c
+
+[Packages]
+  MdeModulePkg/MdeModulePkg.dec
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  UefiApplicationEntryPoint
+  UefiLib
+  UefiBootServicesTableLib
+  PrintLib
+  BaseLib
+  BaseMemoryLib
+
+[Protocols]
+  gEfiPciRootBridgeIoProtocolGuid

@@ -1,0 +1,22 @@
+[Defines]
+  INF_VERSION    = 0x00010006
+  BASE_NAME      = StorageEnum
+  FILE_GUID      = C84B37A9-1A64-48A7-A712-7A950518B020
+  MODULE_TYPE    = UEFI_APPLICATION
+  ENTRY_POINT    = UefiMain
+
+[Sources]
+  MyStorageEnum.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  UefiLib
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  DevicePathLib
+
+[Protocols]
+  gEfiBlockIoProtocolGuid
+  gEfiDevicePathProtocolGuid

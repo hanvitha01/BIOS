@@ -1,0 +1,392 @@
+UEFI / EDK II – Detailed Technical Notes
+1. Protocols in UEFI / EDK II
+1.1 What is a Protocol?
+
+In UEFI, a Protocol is a structured interface (a C structure) that contains function pointers and/or data fields. It defines a standard way for one module (driver/application) to expose services to another.
+
+Think of it as a contract:
+
+A driver installs a protocol to say: “I provide these services.”
+
+Another driver or application locates that protocol and uses those services.
+
+Protocols are the foundation of modular firmware architecture in EDK II.
+
+1.2 Why Protocols Are Needed
+
+UEFI is highly modular. Instead of hardcoding dependencies:
+
+Drivers do not directly call each other.
+
+They communicate only through protocols.
+
+This allows dynamic driver loading, binding, and hardware abstraction.
+
+Without protocols, firmware would be tightly coupled and difficult to scale.
+
+1.3 Categories of Protocols
+1.3.1 Boot Services Protocols
+
+These protocols are available only before ExitBootServices() is called.
+
+They are used during:
+
+DXE phase
+
+Boot device initialization
+
+Driver loading
+
+File system access
+
+Examples:
+
+EFI_BLOCK_IO_PROTOCOL → Block device access
+
+EFI_SIMPLE_FILE_SYSTEM_PROTOCOL → File system operations
+
+EFI_GRAPHICS_OUTPUT_PROTOCOL → Display output
+
+EFI_LOADED_IMAGE_PROTOCOL → Information about loaded images
+
+After ExitBootServices(), these protocols are no longer available.
+
+1.3.2 Runtime Services Protocols
+
+These remain available even after ExitBootServices().
+
+Used by:
+
+Operating systems
+
+Runtime firmware services
+
+Examples:
+
+GetTime()
+
+SetTime()
+
+GetVariable()
+
+SetVariable()
+
+ResetSystem()
+
+These are critical for OS–firmware interaction.
+
+1.3.3 Driver Model Protocols
+
+Used in the UEFI Driver Model to manage how drivers attach to hardware.
+
+Important ones:
+
+EFI_DRIVER_BINDING_PROTOCOL
+
+EFI_COMPONENT_NAME_PROTOCOL
+
+Driver Binding Protocol contains:
+
+Supported()
+
+Start()
+
+Stop()
+
+This allows UEFI to:
+
+Detect hardware
+
+Check if a driver supports it
+
+Start the driver
+
+Stop/unload it if required
+
+1.3.4 Architectural Protocols
+
+These are core system-level protocols installed once by firmware.
+
+Examples:
+
+EFI_CPU_ARCH_PROTOCOL
+
+EFI_TIMER_ARCH_PROTOCOL
+
+EFI_BDS_ARCH_PROTOCOL
+
+They represent fundamental architectural services required by the system.
+
+1.3.5 PPIs (PEI Phase Interfaces)
+
+Used during PEI phase (before DXE).
+
+They are similar to protocols but used in early boot.
+
+Installed and located using PEI Services.
+
+1.4 How Protocols Are Registered
+
+Protocols are installed into the Handle Database using Boot Services APIs.
+
+Installing a Protocol
+gBS->InstallProtocolInterface(
+    &Handle,
+    &gEfiMyProtocolGuid,
+    EFI_NATIVE_INTERFACE,
+    &MyProtocolInstance
+);
+
+What happens here:
+
+A handle is created (if needed).
+
+The protocol GUID is associated with the handle.
+
+The protocol interface structure is stored.
+
+Installing Multiple Protocols
+gBS->InstallMultipleProtocolInterfaces(
+    &Handle,
+    &gEfiProtocol1Guid, &Protocol1,
+    &gEfiProtocol2Guid, &Protocol2,
+    NULL
+);
+
+Used when a driver exposes multiple services.
+
+1.5 How Protocols Are Located
+LocateProtocol
+
+Used when only one instance is expected in the system.
+
+gBS->LocateProtocol(
+    &gEfiSimpleFileSystemProtocolGuid,
+    NULL,
+    (VOID**)&FileSystem
+);
+HandleProtocol
+
+Used when you already have a handle.
+
+gBS->HandleProtocol(
+    Handle,
+    &gEfiBlockIoProtocolGuid,
+    (VOID**)&BlockIo
+);
+LocateHandleBuffer
+
+Used to find all handles supporting a specific protocol.
+
+gBS->LocateHandleBuffer(
+    ByProtocol,
+    &gEfiBlockIoProtocolGuid,
+    NULL,
+    &HandleCount,
+    &HandleBuffer
+);
+2. GUIDs in EDK II
+2.1 What is a GUID?
+
+A GUID (Globally Unique Identifier) is a 128-bit unique identifier.
+
+Format:
+
+xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+
+In UEFI, GUIDs uniquely identify:
+
+Protocols
+
+Files
+
+Variables
+
+PPIs
+
+HII formsets
+
+Event groups
+
+GUIDs prevent naming conflicts across firmware modules.
+
+2.2 Types of GUIDs
+2.2.1 Protocol GUID
+
+Every protocol is identified by a GUID.
+
+Example:
+gEfiBlockIoProtocolGuid
+
+This GUID is used when:
+
+Installing the protocol
+
+Locating the protocol
+
+2.2.2 File GUID
+
+Each firmware file in an FFS (Firmware File System) has a unique GUID.
+
+Defined in INF file:
+
+FILE_GUID = xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+
+Used by:
+
+Firmware Volume
+
+DXE Dispatcher
+
+2.2.3 Variable GUID (Vendor GUID)
+
+UEFI variables are identified by:
+
+Variable name
+
+Vendor GUID
+
+Example:
+
+SetVariable(
+    L"MyVar",
+    &gMyVendorGuid,
+    Attributes,
+    DataSize,
+    Data
+);
+
+This ensures different vendors don’t overwrite each other’s variables.
+
+2.2.4 PPI GUID
+
+Used in PEI phase to identify PPIs.
+
+Example:
+gEfiPeiMasterBootModePpiGuid
+
+2.2.5 HII Formset GUID
+
+Used in HII (Human Interface Infrastructure) for forms.
+
+Example:
+MY_FORMSET_GUID
+
+This identifies a form package uniquely.
+
+2.2.6 Event Group GUID
+
+Used to group related events.
+
+Example:
+gEfiEventExitBootServicesGuid
+
+When ExitBootServices is triggered, all events in this group are notified.
+
+3. Handle Database in UEFI
+3.1 What is the Handle Database?
+
+The Handle Database is a firmware-managed internal structure.
+
+It maps:
+
+Handle → Protocol GUID → Protocol Interface
+
+Boot Services maintains this database.
+
+3.2 What is a Handle?
+
+A Handle is simply a reference (an opaque pointer) used by UEFI to represent:
+
+Devices
+
+Drivers
+
+Controllers
+
+Logical entities
+
+A handle does NOT directly contain hardware.
+It contains installed protocols.
+
+3.3 Conceptual Structure
+
+Example:
+
+Handle A:
+
+EFI_DEVICE_PATH_PROTOCOL
+
+EFI_BLOCK_IO_PROTOCOL
+
+Handle B:
+
+EFI_DRIVER_BINDING_PROTOCOL
+
+Handle C:
+
+EFI_SIMPLE_FILE_SYSTEM_PROTOCOL
+
+This allows UEFI to query:
+“Which handles support Block IO?”
+
+3.4 Types of Handles
+3.4.1 Image Handle
+
+Represents a loaded image (driver or application).
+
+Contains:
+
+EFI_LOADED_IMAGE_PROTOCOL
+
+3.4.2 Controller Handle
+
+Represents a physical hardware device.
+
+Examples:
+
+PCI device
+
+USB controller
+
+SATA controller
+
+Protocols installed may include:
+
+EFI_DEVICE_PATH_PROTOCOL
+
+EFI_PCI_IO_PROTOCOL
+
+3.4.3 Child Handle
+
+Created by drivers to represent logical devices.
+
+Examples:
+
+Disk partitions
+
+USB mass storage logical unit
+
+3.4.4 Driver Binding Handle
+
+Handle where EFI_DRIVER_BINDING_PROTOCOL is installed.
+
+Used during driver-controller binding.
+
+3.5 How It Works in Practice
+
+A driver loads.
+
+It installs Driver Binding Protocol.
+
+UEFI finds controllers.
+
+Supported() checks compatibility.
+
+Start() attaches driver to controller.
+
+Driver installs additional protocols.
+
+Child handles may be created.
+
+All interactions happen through Boot Services APIs.

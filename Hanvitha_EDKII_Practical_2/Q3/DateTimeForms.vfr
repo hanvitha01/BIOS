@@ -1,0 +1,58 @@
+#include "DateTimeNvData.h"
+#include "DateTimeFormGuid.h"
+
+formset
+  guid      = DATETIME_FORMSET_GUID,
+  title     = STRING_TOKEN(STR_FORM_TITLE),
+  help      = STRING_TOKEN(STR_FORM_HELP),
+  classguid = EFI_HII_PLATFORM_SETUP_FORMSET_GUID,
+  class     = 0x04,
+  subclass  = 0x03,
+
+  // 1. Regular varstore for the time data (in-memory)
+  varstore DATETIME_CONFIGURATION,
+    varid = DATETIME_VARSTORE_ID,
+    name  = DateTimeData,
+    guid  = DATETIME_FORMSET_GUID;
+
+  // 2. Simple UINT8 EFIVARSTORE (no struct needed here)
+  efivarstore UINT8,
+    attribute = 0x03,  // NV | BS
+    name      = AutoRefreshVar,
+    guid      = DATETIME_FORMSET_GUID;
+
+  form formid = FORM_ID_DATETIME,
+       title  = STRING_TOKEN(STR_FORM_TITLE);
+
+    // Live Clock Suppression logic
+    // We check the variable directly by name
+    suppressif ideqval AutoRefreshVar == 0;
+      subtitle text = STRING_TOKEN(STR_CURRENT_TIME);
+
+      date
+        varid  = DateTimeData.Year,
+        prompt = STRING_TOKEN(STR_DATE_PROMPT),
+        help   = STRING_TOKEN(STR_DATE_HELP),
+        refresh interval = 1
+      enddate;
+
+      time
+        varid  = DateTimeData.Hour,
+        prompt = STRING_TOKEN(STR_TIME_PROMPT),
+        help   = STRING_TOKEN(STR_TIME_HELP),
+        refresh interval = 1
+      endtime;
+    endif;
+
+    subtitle text = STRING_TOKEN(STR_NULL_STRING);
+
+    // Checkbox directly linked to the NVRAM variable
+    checkbox varid = AutoRefreshVar,
+      prompt       = STRING_TOKEN(STR_ENABLE_REFRESH_PROMPT),
+      help         = STRING_TOKEN(STR_ENABLE_REFRESH_HELP),
+      flags        = INTERACTIVE,
+      key          = 0x102,
+    endcheckbox;
+
+  endform;
+endformset;

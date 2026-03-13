@@ -1,0 +1,831 @@
+1)FSV AND ITS TYPES:
+FSP (Firmware Support ) is an Intel-provided binary firmware component that initializes silicon hardware (CPU, chipset, memory) during the early boot stages.
+FSP executes the low-level CPU instructions that directly program hardware registers to make that hardware usable.
+Why FSP exists
+Modern CPUs and chipsets are extremely complex. Intel provides FSP so that:
+•	Board/BIOS developers don’t need to write low-level silicon init code
+•	Hardware initialization is consistent and validated
+•	Time-to-market is faster
+FSP is split into three logical parts:
+1️⃣ FSP-T (Temporary RAM Init)
+•	Sets up Cache-as-RAM
+•	Allows PEI phase to run
+•	Very first FSP entry point
+2️⃣ FSP-M (Memory Init)
+•	Initializes DRAM
+•	Trains memory
+•	Hands over real RAM to BIOS
+3️⃣ FSP-S (Silicon Init)
+•	Initializes remaining silicon:
+o	PCIe
+o	USB
+o	Power management
+o	SoC features
+2. what is boot policy?
+Boot Policy means the rules the firmware follows to decide how, from where, and in what order the system boots an OS. It is stored in BIOS/UEFI variables (NVRAM)and implemented by DXE + BDS (Boot Device Selection) phase.
+
+1️⃣ Boot device order
+•	SSD first, then USB, then Network
+•	Legacy vs UEFI boot
+•	Fallback if first device fails
+2️⃣ Boot mode rules
+•	UEFI boot only
+•	Legacy (CSM) allowed or not
+•	Mixed mode allowed
+3️⃣ Security rules
+•	Secure Boot enabled/disabled
+•	Only signed OS loaders allowed
+•	Block unknown USB boot
+3. diff b/w text mode and graphics mode
+Text Mode:
+•	Displays characters only (letters, numbers, symbols)
+•	Screen is divided into rows and columns (like 80×25)
+•	Each screen position holds one character
+•	Uses very little memory
+•	Faster to display
+•	Examples: Command Prompt, DOS screen, terminal
+Best for: typing commands, programming, simple output
+Graphics Mode:
+•	Displays images, shapes, colours, and text
+•	Screen is divided into pixels
+•	Each pixel can have a different colour
+•	Uses more memory
+•	Slower compared to text mode
+•	Examples: Windows desktop, games, drawing software
+Best for: pictures, videos, games, graphical user interfaces (GUI)
+
+4. what’s ACPI?
+ACPI stands for Advanced Configuration and Power Interface.
+ACPI is a standard that tells the operating system how to manage power and hardware using information provided by the BIOS/UEFI.
+Why ACPI exists
+Before ACPI:
+•	BIOS controlled power
+•	OS had little control
+With ACPI:
+•	OS controls power
+•	BIOS just describes the hardware and rules
+So:
+BIOS describes → OS decides → Hardware obeys
+What ACPI does
+1️⃣ Power management
+•	Sleep states
+•	Shutdown
+•	Idle power saving
+2️⃣ Device power control
+•	Turn devices ON/OFF
+•	Save power when idle
+3️⃣ Hardware description
+•	Tells OS:
+o	Which devices exist
+o	How they are connected
+o	How to control them
+ACPI power states (important)
+System states    State	Meaning
+S0	System ON
+S3	Sleep (Suspend to RAM)
+S4	Hibernate
+S5	Soft OFF
+Device states
+•	D0 → Fully ON
+•	D3 → OFF
+5.what is a software hook?
+A software hook is a mechanism that allows one piece of software to intercept, monitor, modify, or extend the behaviour of another piece of software at a specific point.
+How a software hook works
+At a defined point in execution:
+1.	Program reaches a hook point
+2.	Control is transferred to hook code
+3.	Hook code runs (log, modify, block, extend)
+4.	Control returns to original flow
+In firmware:
+A hook is a predefined callback that platform code can register to run at a specific boot or runtime stage.
+Examples:
+•	Before memory init
+•	Before OS handoff
+•	On S3 resume
+•	On power button press
+
+6.What is SMM?
+System Management Mode (SMM) is a special, ultra-privileged CPU mode on x86 processors, designed for low-level system management tasks that must be:
+•	Invisible to the OS
+•	Isolated from normal software
+•	Protected from malware
+It was introduced by Intel for power and hardware management, but today it is the most security-critical execution environment in firmware.
+SMM is entered only when an SMI occurs.
+When an SMI fires:
+1.	CPU immediately stops current execution
+2.	CPU state is automatically saved
+3.	CPU jumps to SMM code
+4.	OS has zero awareness
+ CPU State Is Saved To: SMRAM
+•	All registers
+•	Control registers
+•	Segment registers
+•	Instruction pointer
+This saved context is called the SMI Save State.
+
+7.What is CRC (Cyclic Redundancy Check)?
+CRC (Cyclic Redundancy Check) is an error-detection technique used to verify the integrity of data—to check whether data was altered, corrupted, or damaged during:
+•	Storage (flash, disk, memory)
+•	Transmission (USB, PCIe, Ethernet)
+•	Firmware updates (BIOS/UEFI images)
+ CRC detects errors; it does NOT correct them.
+
+Where CRC Is Used
+•	Firmware Volume (FV) headers
+•	Capsule update validation
+•	NVRAM variable integrity
+•	Option ROM validation
+8.What is a Patch File?
+A patch file is a text file that describes changes to be applied to one or more source files without sending the full files again.
+It contains:
+•	What lines were added
+•	What lines were removed
+•	Where the change applies
+Patch files are heavily used in BIOS/UEFI, Linux kernel, firmware, and large codebases
+This makes:
+•	Code review easier
+•	Version control cleaner
+•	Collaboration safer
+•	Integration faster
+9.What is a Makefile?
+A Makefile is a build instruction file used by the tool make (common on Linux/Unix).
+It tells the build system:
+•	What to build
+•	How to build it
+•	In what order
+•	When to rebuild
+Why Makefiles Exist
+Large projects have:
+•	Hundreds of source files
+•	Dependencies between files
+•	Different build configurations
+Makefile:
+•	Rebuilds only what changed
+•	Saves time
+•	Avoids human errors
+What is an NMake File?
+An NMake file serves the same purpose as a Makefile but:
+•	Uses Microsoft syntax
+•	Uses Visual C++ compiler (cl.exe)
+In EDK2:
+•	You do NOT write Makefiles
+•	You write:
+o	.INF (module description)
+o	.DSC (platform description)
+o	.FDF (flash layout)
+EDK2 internally:
+•	Generates Makefiles / NMake files
+•	Uses nmake on Windows
+•	Uses make on Linux
+11.What is FSP?
+FSP (Firmware Support Package) is a binary-only silicon initialization package provided by Intel.
+It performs early CPU + chipset initialization, so OEMs don’t need to write or maintain complex silicon bring-up code.
+ Think of FSP as:
+“Intel initializes the silicon, BIOS focuses on platform policy.”
+
+ What is FSP 2.0?
+FSP 2.0 is the modern, standardized version of Intel FSP used in UEFI-compliant platforms.
+It cleanly separates silicon initialization from platform firmware.
+ What FSP 2.0 Does
+FSP 2.0 initializes:
+•	CPU cores
+•	Memory (DDR training)
+•	Chipset fabric
+•	Power management
+•	I/O controllers (basic setup)
+And then returns control back to the BIOS.
+FSP 2.0 Architecture
+FSP 2.0 is divided into three binary components:
+ FSP-T (TempRamInit)
+•	Runs very early
+•	Sets up temporary RAM (Cache-as-RAM)
+•	No DRAM yet
+ Used in SEC / early PEI
+ FSP-M (MemoryInit)
+•	Initializes DRAM
+•	Performs memory training
+•	Configures memory controller
+ This is the most critical part
+ FSP-S (SiliconInit)
+•	Initializes remaining silicon
+•	PCIe root ports
+•	Integrated graphics
+FSP-X is an extended / next-generation FSP model used in newer Intel platforms, especially those targeting:
+•	Client SoCs
+•	Hybrid architectures
+•	Modular firmware stacks
+ FSP-X is not a replacement — it is an evolution.
+FSP-X Philosophy
+FSP-X is designed for:
+•	Complex SoCs
+•	Multiple power domains
+•	Fine-grained silicon control
+•	Faster resume paths
+12. What is an Option ROM?
+An Option ROM is firmware code stored on a hardware device (or bundled with system firmware) that allows the BIOS/UEFI to recognize, initialize, and optionally boot from that device before the OS loads.
+Why Option ROM Exists
+When a system powers on:
+•	BIOS knows CPU, RAM, chipset
+•	But does NOT know how every add-in card works
+Option ROM provides:
+•	Initialization logic
+•	Boot services
+•	Legacy compatibility
+ Where Option ROM Lives
+Option ROM can be stored in:
+1.	Flash on the device (NIC, RAID card, GPU)
+2.	System firmware flash (integrated devices)
+3.	Embedded UEFI driver inside BIOS
+Examples:
+•	Network card PXE ROM
+•	RAID controller ROM
+•	GPU VBIOS
+13. What is GPIO?
+GPIO (General Purpose Input/Output) is a programmable digital pin on a chipset / SoC / microcontroller that firmware or software can control to:
+•	Read a signal (input)
+•	Drive a signal (output)
+ In simple terms:
+GPIO = a software-controlled on/off pin
+Why GPIO Exists
+GPIOs are used to connect the CPU/chipset to external hardware signals that are not complex enough to need full controllers.
+Common uses:
+•	Power button
+•	Reset signals
+•	LEDs
+•	Fan enable
+•	Board ID straps
+•	Detect lid open/close
+•	Enable peripherals (Wi-Fi, BT, camera)
+14. What IA-32 and x64 Mean
+ IA-32
+•	32-bit x86 architecture
+•	Introduced with Intel 80386
+•	Commonly called:
+o	x86
+o	32-bit mode
+•	Used in older PCs, legacy OS, early BIOS
+ x64 (x86-64 / AMD64)
+•	64-bit extension of x86
+•	Introduced by AMD, later adopted by Intel
+•	Used in modern CPUs, UEFI, modern OS
+ x64 is backward compatible with IA-32.
+15. Difference between assembly language and machine language?
+What is Machine Language?
+Machine language is the raw binary instructions executed directly by the CPU.
+•	Consists of 0s and 1s
+•	CPU executes it without translation
+•	Different for IA32, X64, ARM, etc.
+•	Humans cannot easily read or write this.
+What is Assembly Language?
+Assembly language is a symbolic, human-readable representation of machine instructions.
+•	Uses mnemonics (MOV, ADD, JMP)
+•	Still CPU-specific
+•	Needs an assembler to convert it to machine code
+Relationship Between Them
+Assembly Code
+     ↓ (Assembler)
+Machine Code
+     ↓
+CPU executes
+
+CPU NEVER executes assembly directly
+
+16.What is SPI?
+ SPI (Serial Peripheral Interface):
+SPI is a synchronous serial communication protocol used to communicate between:
+•	CPU (master)
+•	External devices (slaves) like flash, TPM, sensors
+Key point:
+In BIOS systems, SPI is mainly used to access SPI Flash (where BIOS is stored).
+What is Flash (SPI Flash)?
+ Flash Memory (in BIOS context)
+SPI Flash is non-volatile memory that stores:
+•	BIOS / UEFI firmware
+•	Boot code
+•	Microcode
+•	NVRAM variables
+•	 Data remains even when power is OFF.
+ Why Flash is needed
+RAM:
+•	Volatile
+•	Empty after reset
+Flash:
+•	Non-volatile
+•	CPU fetches first instruction from flash
+17.What are Device Parameters?
+ Device Parameters = Configuration values that define how the SPI flash behaves
+These parameters tell the controller:
+•	How fast it can run
+•	How data is erased
+•	How writes work
+•	Size and layout
+ Common SPI Flash Device Parameters
+Flash Size
+•	Example: 8 MB, 16 MB, 32 MB
+•	Defines address width (24-bit / 32-bit)
+ Page Size
+•	Smallest writable unit
+•	Usually 256 bytes
+You cannot write single bytes directly.
+Sector Size
+•	Smallest erasable block
+•	Common values:
+o	4 KB
+o	64 KB
+Erase before write is mandatory
+Erase Commands
+Different erase granularities:
+Erase Type	Size
+Sector Erase	4 KB
+Block Erase	64 KB
+Chip Erase	Entire flash
+How BIOS Uses Device Parameters
+During early boot:
+1.	SPI controller initializes
+2.	Reads JEDEC ID
+3.	Matches flash model
+4.	Loads device parameter table
+5.	Sets:
+o	Clock
+o	Read mode
+o	Addressing mode
+18. What is Erase Polarity? 
+Erase polarity defines what bit value (0 or 1) a flash memory cell has after an erase operation.
+ Erase polarity = the logical value of flash bits after erase
+ It answers this exact question:
+After I erase flash memory, are the bits 1 or 0?
+
+19.What is LZMA Compression? 
+LZMA (Lempel-Ziv-Markov chain Algorithm) is a high-ratio, lossless compression algorithm widely used in BIOS/UEFI firmware, bootloaders, and embedded systems.
+Lossless → original data is recovered exactly
+High compression → saves a lot of flash space
+ Why LZMA Exists
+Firmware storage (SPI flash) is very limited (8–32 MB).
+LZMA allows:
+•	Smaller firmware images
+•	More features in the same flash
+•	Faster boot reads (less data to fetch)
+How LZMA Works
+LZMA combines two techniques:
+ LZ (Dictionary Compression)
+•	Finds repeated byte sequences
+•	Replaces them with references (distance + length)
+ Markov Chain + Range Coding
+•	Predicts probability of next bits
+•	Encodes data efficiently using range encoding
+ This is why LZMA compresses better than ZIP or GZIP, but needs more CPU.
+
+
+
+20. What is flash device?
+Definition
+A flash device is a non-volatile storage device that stores data using flash memory technology.
+It retains data even when power is turned OFF and does not contain any moving parts.
+What is Flash Memory?
+Flash memory is a type of electronic memory that stores data in memory cells using electrical charges.
+Because it is non-volatile, the stored data is not lost when power is removed.
+
+21. Difference between flash device and storage device?
+Definition
+A storage device is a hardware component used to store data, programs, and information permanently or temporarily in a computer system.
+Purpose of Storage Devices
+•	Store operating systems
+•	Store applications and user data
+•	Backup and archive information
+•	Transfer data between systems
+Types of Storage Devices
+Storage devices can be classified based on the technology used:
+1.	Magnetic Storage
+o	Hard Disk Drive (HDD)
+o	Magnetic Tape
+2.	Optical Storage
+o	CD
+o	DVD
+3.	Solid-State Storage
+o	Flash devices (USB, SSD, SD card)
+22. Flash device vendors list?
+Flash Device Vendors
+Flash device vendors are companies that manufacture flash memory or flash-based storage products such as SSDs, USB drives, memory cards, and embedded flash.
+Major Flash Memory Manufacturers (Chip Makers)
+These companies design and manufacture flash memory chips used worldwide:
+•	Samsung Electronics
+•	Micron Technology
+•	Intel 
+23. PCI vendors id and device id list?
+What is PCI Vendor ID?
+A PCI Vendor ID is a 16-bit hexadecimal number assigned by the PCI-SIG to uniquely identify a hardware manufacturer.
+•	Written in hexadecimal (e.g., 0x8086)
+•	Identifies who made the device
+•	Same Vendor ID is used for all devices from that company
+What is PCI Device ID?
+A PCI Device ID is a 16-bit hexadecimal number assigned by the vendor to identify a specific device or chipset.
+•	Written in hexadecimal (e.g., 0x100E)
+•	Identifies which device from that vendor
+•	Combined with Vendor ID to uniquely identify hardware
+How Vendor ID and Device ID Work Together
+•	Vendor ID = Who made the device
+•	Device ID = Which device it is
+Example:
+•	Vendor ID: 0x8086 → Intel
+•	Device ID: 0x100E → Intel Gigabit NIC
+
+
+24. What is device path in UEFI?
+Definition
+A Device Path in UEFI is a structured data representation that uniquely describes the location of a device or file in the system firmware environment.
+It tells UEFI how to reach a device step-by-step, starting from the root of the system hardware.
+Why Device Path Is Needed
+UEFI supports many device types (PCI, USB, SATA, NVMe, filesystems, network).
+A single identifier like a number is not enough.
+Device Path allows UEFI to:
+•	Locate hardware devices
+•	Identify boot devices
+•	Load drivers
+•	Locate files (EFI applications)
+25. What are nested macros?
+Definition
+Nested macros are macros defined or used inside another macro.
+In other words, one macro expands to code that contains another macro, which is then expanded by the preprocessor
+Advantages of Nested Macros
+•	Code reuse
+•	Centralized changes
+•	Shorter and cleaner code
+•	Useful in low-level programming (BIOS, UEFI, drivers)
+Disadvantages of Nested Macros
+•	Difficult to debug
+•	Harder to read if overused
+•	Can cause unexpected behaviour if not carefully written
+
+26.What are mmio and page tables?
+1. Memory-Mapped I/O (MMIO)
+Definition
+Memory-Mapped I/O (MMIO) is a mechanism where hardware device registers are mapped into the system’s physical memory address space. The CPU accesses these device registers using the same load and store instructions used for normal memory.
+Purpose of MMIO
+MMIO allows:
+•	Uniform access to devices using standard memory instructions
+•	Simplified CPU and compiler design
+•	Faster device access compared to legacy I/O methods
+•	Compatibility with modern 32-bit and 64-bit architectures
+How MMIO Works
+1.	A hardware device exposes control and status registers at fixed physical addresses.
+2.	The operating system or firmware maps these addresses into its address space.
+3.	Software reads or writes to these addresses.
+4.	The hardware device responds to the access.
+Page Tables
+Definition: Page tables are data structures used by the CPU’s Memory Management Unit (MMU) to translate virtual addresses used by software into physical addresses used by hardware.
+Why Page Tables Exist
+Programs use virtual addresses
+RAM uses physical addresses
+The page table connects the two.
+Virtual Address ──▶ Page Table ──▶ Physical Address
+
+Purpose of Page Tables
+Page tables provide:
+•	Memory isolation between processes
+•	Protection and access control
+•	Support for virtual memory
+27.What is HID and UID?
+1. HID (Hardware ID)
+Definition
+HID (Hardware ID) is an identifier used by firmware and operating systems to identify the type or class of a hardware device. It tells the system what the device is, not which exact physical unit it is.
+HID is commonly used during:
+•	Device enumeration
+•	Driver matching
+•	Hardware classification
+Purpose of HID
+HID is used to:
+•	Identify a device’s function or category
+•	Select the correct driver
+•	Distinguish between different device types
+UID (Unique ID)
+Definition
+UID (Unique ID) is an identifier that uniquely distinguishes one physical device from another, even if both devices are of the same model.
+Purpose of UID
+UID is used to:
+•	Uniquely identify hardware instances
+•	Track devices across reboots
+•	Bind configuration or state to a specific device
+•	Support security and licensing mechanisms
+How HID and UID Work Together
+When a device is detected:
+1.	HID identifies what kind of device it is.
+2.	UID identifies which exact device it is.
+3.	The system:
+o	Loads the correct driver using HID
+o	Applies per-device settings using UID
+
+28.What is micro code?
+Microcode
+1. Definition
+Microcode is a low-level set of internal instructions stored inside a CPU that controls how machine-level instructions are executed by the processor.
+It acts as an intermediate layer between:
+•	Machine instructions (x86, ARM, etc.)
+•	Physical CPU hardware (ALU, registers, pipelines)
+Why Microcode Exists
+Modern CPU instructions are complex and cannot always be executed directly by hardware in a single step. Microcode breaks these complex instructions into simpler internal operations (called micro-operations or µops).
+Microcode allows:
+•	Simplification of CPU hardware design
+•	Support for complex instruction sets (e.g., x86)
+•	Bug fixes after manufacturing
+•	Behavioural consistency across CPU generations
+29. What are the cpu real modes?
+1. CPU Real Modes
+Definition
+CPU modes define how the processor operates and what features are available.
+Common CPU Modes (x86)
+1.	Real Mode
+•	Default mode after CPU reset
+•	16-bit addressing
+•	Maximum 1 MB memory access
+•	No memory protection
+•	Used by legacy BIOS
+2.	Protected Mode
+o	32-bit mode
+o	Memory protection
+o	Multitasking support
+o	Paging support
+o	Used by modern OS kernels
+3.	Long Mode
+o	64-bit mode
+o	Used by modern 64-bit OS
+o	Supports large memory addressing
+o	Includes compatibility mode for 32-bit apps
+4.	System Management Mode (SMM)
+o	Special hidden mode
+o	Used for power and hardware management
+o	Runs isolated from OS
+30.Virtual memory and page table?
+Virtual Memory
+Virtual memory allows programs to use virtual addresses instead of physical addresses.
+Benefits:
+•	Process isolation
+•	Memory protection
+•	Efficient memory usage
+Page Tables
+Page tables are data structures that map:
+Virtual Address → Physical Address
+They are used by the CPU’s Memory Management Unit (MMU).
+Page tables also define:
+•	Access permissions (Read / Write / Execute)
+•	Memory type (RAM or MMIO)
+•	Cache behavior
+
+31.What is notification and call back function?
+Callback Function
+A callback is a function passed as an argument and executed when a specific event occurs.
+Example:
+•	Timer expiration
+•	Interrupt
+•	Button press
+Notification
+A notification is the mechanism that triggers a callback when an event happens.
+Example:
+•	UEFI protocol notify
+•	OS event notification
+32.What is s3 resume?
+Definition
+S3 Resume refers to the process of restoring a system from the S3 power state, also known as Suspend-to-RAM.
+In the S3 state:
+•	System RAM remains powered
+•	CPU, chipset, and most devices are powered off
+•	System context is preserved in memory
+S3 Resume Process
+1.	System enters S3 state on sleep request
+2.	RAM contents are preserved
+3.	Power is removed from CPU and devices
+4.	On wake-up event (keyboard, mouse, timer):
+o	CPU resets
+o	Firmware performs minimal initialization
+o	Memory contents are restored
+o	OS resumes execution from saved state
+33.What is watch dog timer and monotonic counter?
+A Watchdog Timer (WDT) is a hardware or software timer used to detect and recover from system failures.
+It monitors whether the system (CPU / firmware / OS) is operating correctly.
+If the system fails to respond or gets stuck (for example due to a software hang or infinite loop), the watchdog timer automatically resets or recovers the system.
+Why is a Watchdog Timer Needed?
+In real-time and low-level systems such as:
+•	BIOS / UEFI firmware
+•	Embedded systems
+•	Operating systems kernel
+•	Industrial controllers
+there may be no user interaction to recover the system when it hangs.
+The watchdog timer ensures:
+•	System reliability
+•	Automatic recovery
+•	Prevention of permanent system lock-ups
+How Does a Watchdog Timer Work?
+1.	The watchdog timer is started with a fixed timeout value
+2.	The software must periodically “kick” or “pet” the watchdog
+3.	If the software works correctly → watchdog keeps resetting
+4.	If the software hangs or crashes → watchdog expires
+5.	On expiry → system performs a reset, interrupt, or recovery action
+
+
+
+34.what is FAT 32 and NTFS file system?
+What is FAT32?
+FAT32 (File Allocation Table 32) is an older and simple file system developed by Microsoft.
+It is widely supported by almost all operating systems and devices.
+Key Features of FAT32
+•	Uses a File Allocation Table to track file locations
+•	Simple structure
+•	Highly compatible across platforms
+•	No built-in security or permissions
+FAT32 Limitations
+•	Maximum single file size: 4 GB
+•	Maximum partition size: ~2 TB
+•	No file permissions
+•	No encryption
+•	No journaling (less crash-safe)
+What is NTFS?
+NTFS (New Technology File System) is a modern, advanced file system developed by Microsoft for Windows operating systems.
+Key Features of NTFS
+•	Supports very large files and partitions
+•	Journaling for crash recovery
+•	File permissions and access control
+•	File encryption and compression
+•	Better performance and reliability
+NTFS Limits
+•	Maximum file size: Up to 16 TB (practically much larger)
+•	Maximum volume size: Up to 256 TB or more (depends on cluster size)
+35.What is IHV and ODM and OEM?
+An Independent Hardware Vendor (IHV) is a company that designs and manufactures hardware components which are sold to other companies for integration into larger systems.
+Key Characteristics of IHV:
+•	Focuses on specific hardware components
+•	Supplies hardware to OEMs and ODMs
+•	Provides drivers, firmware, and technical support
+•	Hardware is usually sold under the IHV’s own brand
+Role of IHV in BIOS / Firmware
+•	Provides reference code and specs
+•	Supplies firmware interfaces (ACPI, SMBIOS, MMIO specs)
+•	Works closely with BIOS vendors
+ODM (Original Design Manufacturer)
+What is ODM?
+An Original Design Manufacturer (ODM) is a company that designs and manufactures a complete product which is later rebranded and sold by another company.
+Key Characteristics of ODM
+•	Designs entire systems (motherboards, laptops, servers)
+•	Handles hardware design and manufacturing
+•	Product is sold under OEM’s brand
+•	May produce the same design for multiple brands
+Role of ODM in BIOS / Firmware
+•	Integrates BIOS/UEFI
+•	Customizes firmware for platforms
+•	Works with IHVs for hardware compatibility
+OEM (Original Equipment Manufacturer)
+What is OEM?
+An Original Equipment Manufacturer (OEM) is a company that sells the final product to customers under its own brand, even if it did not design or manufacture all components.
+Key Characteristics of OEM
+•	Owns the brand and customer relationship
+•	Defines product requirements
+•	Handles marketing, sales, and support
+•	May or may not manufacture the product
+Role of OEM in BIOS / Firmware
+•	Specifies firmware features
+•	Controls BIOS customization and branding
+•	Handles BIOS updates and customer support
+36.What is DDR4 and DDR4LP?
+DDR4 (Double Data Rate 4 SDRAM)
+DDR4 is the fourth generation of Double Data Rate Synchronous Dynamic Random-Access Memory (SDRAM).
+It is used as main system memory (RAM) in desktops, laptops, servers, and embedded platforms.
+Key Features of DDR4:
+
+•	Transfers data on both rising and falling edges of the clock
+•	Higher speed than DDR3
+•	Lower power consumption than DDR3
+•	Higher memory density (supports larger RAM sizes)
+Where DDR4 is Used?
+•	Desktop PCs
+•	Laptops
+•	Servers
+•	Workstations
+DDR4LP (Low-Power DDR4)
+DDR4LP stands for Low-Power DDR4.
+It is a power-optimized version of DDR4, designed mainly for mobile and embedded platforms.
+DDR4LP is also commonly referred to as LPDDR4 in industry usage.
+Key Features of DDR4LP
+•	Lower operating voltage
+•	Reduced power consumption
+•	Optimized for battery-powered devices
+Where DDR4LP is Used?
+•	Smartphones
+•	Tablets
+•	Embedded and IoT devices
+37. USB interface descriptor, end point descriptor, config descriptor.
+What are USB Descriptors?
+USB descriptors are data structures that describe a USB device’s capabilities, configuration, and communication methods to the host (PC).
+They are sent by the device to the host during USB enumeration.
+1. USB Configuration Descriptor
+What is a Configuration Descriptor?
+A Configuration Descriptor describes one complete device configuration, including:
+•	Power requirements
+•	Number of interfaces
+•	All related interface and endpoint descriptors
+A USB device can have multiple configurations, but only one configuration can be active at a time.
+Field	                              Description
+bLength	                        Size of this descriptor
+bDescriptorType	      CONFIGURATION descriptor type
+wTotalLength	             Total size of all descriptors for this configuration
+
+Purpose
+•	Tells host how the device is powered
+•	Defines how many interfaces the device has
+•	Groups interfaces and endpoints together
+What is an Interface Descriptor?
+An Interface Descriptor defines one functional unit of a USB device.
+Each interface represents a logical function, such as:
+•	Keyboard
+•	Mouse
+•	Audio device
+•	Mass storage
+Purpose
+•	Allows composite devices to expose multiple functions
+•	Used by OS to load the correct driver
+What is an Endpoint Descriptor?
+•	An Endpoint Descriptor defines a communication channel between host and device.
+•	Endpoints are unidirectional and used to transfer data.
+Type	Usage
+Control	Device management (EP0)
+Bulk	Large data transfer (USB storage)
+Interrupt	Small, time-critical data (keyboard, mouse)
+Purpose
+•	Defines how data flows
+•	Specifies packet size and transfer timing
+
+
+38.Difference between scan code and uni code?
+1. Scan Code
+What is a Scan Code?
+A scan code is a hardware-level code generated by the keyboard when a key is pressed or released.
+•	Generated by the keyboard controller
+•	Represents the physical key location
+•	Independent of language or character set
+Key Characteristics of Scan Code
+•	Generated on key press (make code) and key release (break code)
+•	Same scan code regardless of keyboard language
+•	Used by BIOS, firmware, and OS keyboard drivers
+•	Example: Pressing the A key generates a scan code, regardless of language.
+What is Unicode?
+Unicode is a universal character encoding standard that represents characters and symbols from all languages.
+•	Represents characters, not keys
+•	Language and layout dependent
+•	Used at application level
+Key Characteristics of Unicode
+•	Can represent characters from all languages
+•	Same character has same Unicode value everywhere
+•	Generated after OS layout and language processing
+•	High-level representation
+Example
+•	Character ‘A’ → Unicode U+0041
+•	Character ‘अ’ → Unicode U+0905
+39.What is NV-RAM?
+NV-RAM is a type of memory that retains stored data even when power is turned off, while still allowing random access like normal RAM.
+In simple words:
+NV-RAM combines the speed of RAM with the persistence of storage.
+Why NV-RAM is Needed
+Traditional RAM (DRAM):
+•	Fast
+•	❌ Loses data when power is off
+Traditional Storage (HDD/SSD):
+•	Non-volatile
+•	❌ Slower than RAM
+NV-RAM solves this gap by providing:
+•	Fast access
+•	Data persistence
+Key Characteristics of NV-RAM
+•	Non-volatile (data preserved without power)
+•	Random access
+•	Faster than disks
+•	Used for critical system data
+Common Types of NV-RAM
+1. Flash Memory (Modern NV-RAM)
+•	EEPROM / NOR / NAND flash
+•	Used in:
+o	BIOS / UEFI firmware
+o	Embedded systems
+Stores:
+•	Firmware code
+•	Configuration variables
+2. NVRAM in UEFI
+In UEFI systems:
+•	NVRAM is a reserved region of flash
+•	Stores:
+o	Boot variables
+o	Secure Boot keys
+o	Boot order
+o	Platform settings
+Examples:
+•	BootOrder
+•	Boot####
+•	SecureBoot
+
+
+
+
+
+
+
+
+
+
+
+

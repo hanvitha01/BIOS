@@ -1,0 +1,421 @@
+tiano
+MBR, WHAT IT CONTAINS
+GPT CONCEPTS
+PRE-EFI
+
+
+bringing up the board with  intel spr/emr processor - bios eagle stream.
+boot block recovery support in ahci mode
+dual image support incase of pfr mode
+
+
+caches- l1 l2 l3
+CPU - feature lists- functionality
+firmware volumes
+microcontroller
+
+pre requisites
+handlers TYEPS
+driver binding protocol and everything
+
+
+virtual mem .....diff with normal memory
+efi system table
+exit boot services---function
+device drivers install and loading diff
+changing boot order-practice
+FAT32 or NTFS disk
+
+
+pcie bus enumeration bus/pcie bus canning
+intruptscr
+console redirection
+RAS-WHATS RAS
+build flags.......compiler specific
+create a env var WORKSPACE ADN PACKAHES_PATH --PAGE 17
+FSV TYPES
+
+
+
+what is boot policy
+
+diff b/w text mode and graphics mode
+bios features list
+what's ACPI
+s/w hook
+smm mode system management mode
+CPU register access type
+what id CRC
+uefiBaseType.h file in edk2 src
+batch file
+make file, nmake file , what's NMake file standard.
+what is fsp 2.0
+option rom
+gpio - configutong gpio
+
+diff b/w ia32 and x64
+diff b/w asm and machine lan
+diff b/w c and asm
+
+
+spi ,flash, device parameters 
+decimal to hex, hex to decimal, binary to hex, hex to binary
+erase polarity
+lzma compress
+
+flash device / dif with storage device.
+flahs device vendor list
+pci ven id and device id list.....
+
+
+segment in address and offset
+device path
+
+
+
+
+128u-132 main----------if fail 128-pass 512------line 156
+
+
+
+
+compiler flags
+
+
+cd C:\edk2\Build\OvmfX64\DEBUG_VS2022\FV
+
+
+C:\edk2\OvmfPkg\PlatformPei\MemoryCacheInfoPeim
+
+EfiGetSystemConfigurationTools()
+mhoblist()
+
+
+
+nested macros
+mmu andphit tables
+
+
+qemu-system-x86_64.exe -L . -machine q35 -m 2G -bios "C:\edk2\Build\OvmfX64\DEBUG_VS2022\FV\OVMF.fd" -serial stdio -chardev file,id=fwlog,path=HobParser.log -device isa-debugcon,iobase=0x402,chardev=fwlog -net none
+
+
+
+
+
+EFI_DRIVER_BINDING_PROTOCOL
+pcibuscomponentname2 protocol------.c
+
+
+hid and uid pnpid ---explanation 
+
+
+mdemodule pkg-----------pcibusdxe-------disable the driver ------C:\edk2\MdeModulePkg\Bus\Pci\PciBusDxe\PciBusDxe.inf
+
+    UefiRuntimeServicesTableLib
+
+
+diff CPU real modes
+what's notification event , what is call back function
+s3 resume
+watchdog, monotonic counters
+smm mode
+fat32 ntfs file system 
+what is microcode.
+independent hw vwndoe..odm oem
+ddr ddr4Lp
+usb interface descriptor, end point descriptor, config descriptor.
+how kb keys are working
+diff b/w scan coed and uni code
+
+
+
+
+
+STEP 0: What already exists before PciBusDxe
+
+Before PciBusDxe does anything:
+
+The hardware PCI slots already exist
+
+The platform already says:
+
+“Here is a PCI root bridge”
+
+But no PCI devices are known yet
+
+Think:
+
+The building exists, but nobody has checked which rooms are inside.
+
+STEP 1: “Can I manage this?” (Supported)
+
+System asks PciBusDxe:
+
+“Can you manage this PCI building?”
+
+PciBusDxe checks only simple things:
+
+Is this really a PCI root?
+
+Is nobody else managing it?
+
+If yes → “OK, I can manage it”
+
+⚠ Nothing changes yet.
+
+STEP 2: Start is called (ownership)
+
+Now system says:
+
+“You are the manager now.”
+
+What Start really means:
+
+PciBusDxe takes control
+
+Only one manager is allowed
+
+From now on, all PCI devices go through PciBusDxe
+
+STEP 3: Look for devices (discovery)
+
+PciBusDxe now looks everywhere:
+
+Slot 0, slot 1, slot 2…
+
+Function 0, function 1…
+
+For each place it asks:
+
+“Is anyone here?”
+
+If no answer → empty
+If answer → PCI device found
+
+This is just finding, not using.
+
+STEP 4: Understand what each device needs
+
+For every found device, PciBusDxe asks:
+
+“How much space do you need?”
+
+Devices reply:
+
+“I need memory”
+
+“I need I/O space”
+
+Still:
+
+Nothing is enabled
+
+Nothing is running
+
+Just planning.
+
+STEP 5: Give addresses (resource assignment)
+
+Now PciBusDxe acts like an address allocator:
+
+Gives each device:
+
+A memory address
+
+An I/O address
+
+Makes sure:
+
+No two devices conflict
+
+This step is very important.
+
+STEP 6: Turn devices ON
+
+After addresses are assigned:
+
+PciBusDxe tells each device:
+
+“Here is your address, you may start working”
+
+Now devices:
+
+Can respond
+
+Can transfer data
+
+Before this step, they were silent.
+
+STEP 7: Tell the rest of the system
+
+Now PciBusDxe announces:
+
+“These devices exist!”
+
+For each device:
+
+Creates a child
+
+Other drivers can now see it
+
+Example:
+
+Network driver sees network card
+
+Storage driver sees SSD
+
+STEP 8: System is stable
+
+Now everything is calm:
+
+PCI devices are ready
+
+Drivers are attached
+
+PciBusDxe just watches quietly
+
+This is the normal state.
+
+What about Stop?
+
+Stop is like saying:
+
+“Manager, please leave the building.”
+
+Why this almost never happens:
+
+Devices are already in use
+
+Removing them breaks the system
+
+PCI was not designed to be removed in firmware
+
+So Stop exists mainly:
+
+For rules
+
+For testing
+
+For rare hot-plug cases
+
+Super-simple summary (memorize this)
+Start:
+1. Take control
+2. Find devices
+3. Ask what they need
+4. Give addresses
+5. Turn them on
+6. Tell other drivers
+
+Stop:
+- Try to undo this (if possible)
+
+One sentence explanation (simplest)
+
+PciBusDxe Start = discover → plan → assign → enable → publish
+-------------------------------------------------------------------------
+
+
+
+
+OvmfPkg/VirtioKeyboardDxe/VirtioKeyboard.inf  line 952
+
+
+perf_start perf_end macro in edk2 source
+
+NVRAM
+
+prim bus no. secondary bud no.subordinate bus no. how to configure,
+
+gcd memory service global coherency domain
+
+
+bsp and ap cores
+
+pxe boot
+pcie segment
+connect controller uefi
+s3 resume boot flow
+real mode to protected mode switching steps
+how to aces CPU registers, cr0
+how to aces CPU dr register
+different CPU segment registers and how it is used by the program 
+what maskable interrupts and non maskable interrupt
+s/w smi interrupt for intel amd
+TSEG
+
+
+ 
+what's happening while shutting down the system
+s3 resume and s3 sleep
+CPU power states- p states and c states
+device power states
+acpi power management registers
+d/f b/w smi and sci
+d/w b/w dsdt ssdt
+d/w ENABLE, CONTROL AND STATUS REGISTERS IN ACPI EVENT
+D/W ACPI KEYWORDS
+WHAT IS ARGC AND ARGV HOW WE CAN USE IT IN C
+GET A UNICODE FOR ALL TELUGU CHARACTERS AND ENGLISJ CHARACTERS AS WEELL AS NUMBERS
+D.W ASCIIII AND UNICODE CHARACTERS
+KEYWORDS USED IN EFR FILES AND HOW TO USE IT.
+
+CPU flags
+what is IDT table
+WHAT ARE CPU REGISTERS AVAIALBALE 
+WHAT IS GCD SERVICES
+C CALLING CONVENTIONS. TYPES.
+HOW DOES PXE BOOT WORK
+
+
+qemu-system-x86_64 ^
+ -machine q35 ^
+ -m 4G ^
+ -bios C:\edk2\Build\OvmfX64\DEBUG_VS2022\FV\OVMF.fd ^
+ -drive file=fat:rw:C:\edk2\UEFI_APP,format=raw ^
+ -global isa-debugcon.iobase=0x402 ^
+ -debugcon stdio ^
+ -serial none
+
+
+5 hw--------FT FOLDER
+c:\edk2>qemu-system-x86_64 ^
+        -m 512M ^
+        -bios Build\OvmfX64\DEBUG_VS2022\FV\OVMF.fd ^
+        -drive file=fat:rw:fs0,format=raw ^
+        -net none
+
+
+NORMAL
+qemu-system-x86_64 ^
+ -machine q35 ^
+ -m 4G ^
+ -bios Build\OvmfX64\DEBUG_VS2022\FV\OVMF.fd ^
+ -global isa-debugcon.iobase=0x402 ^
+ -debugcon stdio ^
+ -serial none ^
+ > C:\edk2\ovmf_pei_log1.txt 2>&1
+
+
+qemu-system-x86_64 ^
+ -machine q35 ^
+ -m 4G ^
+ -bios Build\OvmfX64\DEBUG_VS2022\FV\OVMF.fd ^
+ -global isa-debugcon.iobase=0x402 ^
+ -debugcon stdio ^
+ -serial none ^
+ > C:\edk2\HII.txt 2>&1
+0x0015E000
+
+after that give me summary of the chat so i can give to next chatgpt session
+
+[Protocols]
+  gEdkiiPlatformLogoProtocolGuid
+  gEfiGraphicsOutputProtocolGuid
+
+      NULL|MdeModulePkg/Library/BootMaintenanceManagerUiLib/BootMaintenanceManagerUiLib.inf
+
+
+ARM Architecture joseph liu tail gating
+
+10-simpleprotocolpointer

@@ -1,0 +1,24 @@
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                       = HobDumperDxe
+  FILE_GUID                       = 9F3B4D2A-8C3E-4C6F-9A11-ABCDEF123456
+  MODULE_TYPE                     = DXE_DRIVER
+  VERSION_STRING                  = 1.0
+  ENTRY_POINT                     = HobDumperDxeEntry
+
+[Sources]
+  HobDumperDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  OvmfPkg/OvmfPkg.dec
+
+[LibraryClasses]
+  UefiDriverEntryPoint
+  DebugLib
+  HobLib
+  BaseLib
+  BaseMemoryLib
+
+[Depex]
+  TRUE

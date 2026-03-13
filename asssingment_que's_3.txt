@@ -1,0 +1,1195 @@
+1.explain bsp and ap cores.
+BSP (Bootstrap Processor)
+The BSP is:
+•	The first logical processor that starts after reset
+•	The processor that begins execution from the reset vector (0xFFFFFFF0)
+•	Responsible for:
+o	Early silicon initialization
+o	Memory initialization
+o	Chipset setup
+o	Loading DXE phase
+o	Starting AP cores
+o	Eventually handing control to the OS loader
+In UEFI firmware:
+•	PEI phase runs initially on BSP
+•	DXE phase runs initially on BSP
+•	APs are brought up later using MP Services protocol
+🔹 AP (Application Processors)
+APs:
+•	Are additional CPU cores
+•	Do not execute firmware immediately at reset
+•	Stay in wait-for-SIPI state (Startup IPI)
+•	Must be explicitly started by BSP
+In UEFI, APs are managed through:
+➜ EFI_MP_SERVICES_PROTOCOL
+This protocol allows BSP to:
+•	Start APs
+•	Run code on APs
+•	Switch BSP to another core (rare but possible)
+•	Get processor info
+🔹 How APs Are Started
+Sequence:
+1.	System reset
+2.	BSP starts executing SEC/PEI
+3.	APs are held in halted state
+4.	During PEI or DXE:
+o	BSP sends INIT IPI
+o	Then sends SIPI (Startup IPI)
+5.	APs begin execution at specified address
+
+2.What is pxe boot?
+•	PXE boot means booting a system over the network instead of from local storage. PXE stands for Preboot eXecution Environment. It is a firmware-level feature defined originally by Intel that allows a machine to load an operating system image from a server using the network card before any OS is installed.
+•	When a system powers on, firmware normally looks for boot devices — SSD, HDD, USB, etc. With PXE enabled, firmware can also treat the network adapter as a boot device. In UEFI systems, this is handled by the UEFI network stack and the PXE Base Code protocol. In legacy BIOS systems, it is handled by the NIC’s Option ROM.
+The important thing to understand is this: PXE is still firmware-level execution. The operating system is not running yet. The firmware itself is downloading the bootloader from the network.
+Here’s what technically happens.
+When you select PXE boot, the firmware initializes the network card. The NIC sends a DHCP broadcast asking for an IP address. But this DHCP exchange is slightly special — it also asks, “Where is my boot file?”
+The PXE server responds with:
+•	An IP address for the client
+•	The location of a boot file
+•	The TFTP server address
+Then the firmware uses TFTP (Trivial File Transfer Protocol) to download a small boot program from the server. In UEFI systems, that file is usually an .efi executable, like bootx64.efi.
+Once downloaded, firmware executes that file. From that point onward, the process continues just like normal boot, except everything came from the network.
+Now let’s simplify this.
+Think of PXE boot like this: your computer wakes up with no operating system installed. Instead of checking its own disk, it asks the network, “Does anyone have instructions for me?” A server replies, gives it an address and a file to download. The computer downloads that file and runs it. That file then loads the OS.
+That’s it.
+But there’s an important distinction between Legacy BIOS PXE and UEFI PXE.
+In Legacy BIOS, PXE is usually provided by the network card’s Option ROM. The NIC contains firmware code stored inside it. During POST, BIOS loads that code and exposes PXE as a boot option.
+In UEFI, things are cleaner. The firmware contains a UEFI network stack and supports:
+•	SNP (Simple Network Protocol)
+•	PXE Base Code Protocol
+•	HTTP Boot (modern alternative to TFTP)
+UEFI can even boot using HTTP instead of TFTP, which is more reliable and secure.
+Now let’s address a common wrong assumption.
+Some people think PXE means the operating system is running remotely. That is incorrect. PXE only downloads the bootloader and possibly the installer. After that, the OS runs normally in RAM or installs locally. It is not like remote desktop.
+
+3.what is pcie segment?
+PCIe Segment — In UEFI/BIOS Technical Context
+A PCIe segment (also called a PCI segment group) is a logical grouping of PCI buses that are accessed through a specific host bridge or root complex. It is used to uniquely identify PCI configuration space in systems that have multiple PCI root complexes.
+In older systems, there was usually only one PCI hierarchy. That means:
+•	One root complex
+•	Bus numbers from 0–255
+•	One configuration address space
+But modern systems, especially servers and multi-socket platforms, can have multiple root complexes. Each root complex may manage its own independent PCI bus numbering. Since bus numbers can overlap between root complexes, firmware needs another identifier to distinguish them. That identifier is the PCI segment number.
+In UEFI, PCI configuration space is accessed using:
+•	Segment number
+•	Bus number
+•	Device number
+•	Function number
+This full tuple uniquely identifies a PCI device.
+In ACPI tables (MCFG table specifically), each PCI segment is listed with:
+•	Segment group number
+•	Base address for MMCONFIG
+•	Bus range it covers
+So during DXE phase, when PCI enumeration happens, firmware uses segment numbers to correctly scan devices under each root complex.
+Why Segment Is Needed (Core Reason)
+If two different root complexes both have a device at:
+Bus 0, Device 1, Function 0
+Without a segment number, firmware and OS would not know which one you mean.
+Segment adds another level of addressing.
+So the full address becomes:
+Segment : Bus : Device : Function
+Example:
+Segment 0 : Bus 0 : Device 1 : Function 0
+Segment 1 : Bus 0 : Device 1 : Function 0
+Now they are clearly different devices.
+4.Explain about connect controller.
+In UEFI, everything is driver-based.
+Hardware devices are represented by handles.
+Drivers bind to those handles using protocols.
+“Connect Controller” is the process where UEFI:
+•	Finds a controller handle
+•	Searches for a matching driver
+•	Loads that driver (if not already loaded)
+•	Binds the driver to the controller
+•	Produces new child handles if needed
+This process is handled by:
+EFI_BOOT_SERVICES.ConnectController()
+This is part of Boot Services.
+What Is a Controller?
+In UEFI terminology, a controller is:
+A handle that represents a hardware device that can have a driver attached.
+Example controllers:
+•	PCI device
+•	USB controller
+•	SATA controller
+•	Network card
+What Happens During ConnectController?
+When ConnectController() is called:
+1.	UEFI checks which drivers support that controller.
+2.	It loads driver images if necessary.
+3.	It calls the driver’s Supported() function.
+4.	If supported, it calls Start().
+5.	The driver installs protocols on that handle.
+6.	If the controller produces child devices (like USB hub), child handles are created.
+This is how devices become usable.
+Why It Is Important
+If a controller is not connected:
+•	No driver is bound.
+•	No device path protocols installed.
+•	No Block I/O, Simple File System, or network protocols.
+•	It cannot appear as boot option.
+So “Connect Controller” basically activates the device.
+🔹 Where You See It
+In BIOS Setup → sometimes there is an option:
+“Connect all controllers”
+In UEFI Shell:
+You can use:
+connect -r
+This recursively connects all controllers.
+🔹 Key Technical Points
+•	Implemented by EFI Boot Services.
+•	Uses Driver Binding Protocol.
+•	Calls Supported() and Start().
+•	Can create child controllers.
+•	Required for device enumeration.
+•	Happens automatically during BDS phase for boot devices
+
+5.Explain s3 resume boot flow.
+What Is S3?
+S3 is an ACPI sleep state called Suspend to RAM.
+•	CPU is powered off
+•	Most chipset logic is powered down
+•	DRAM remains powered and retains contents
+•	OS state remains in memory
+When you press power button again, system performs S3 resume, not a cold boot.
+🔹 Normal Boot vs S3 Resume (Big Difference)
+In normal cold boot:
+SEC → PEI → DXE → BDS → OS Loader
+In S3 resume:
+SEC → PEI (minimal) → S3 Resume Path → Jump back to OS
+DXE and BDS are NOT executed normally.
+That’s the key difference.
+🔹 S3 Resume Boot Flow (Technical View)
+Here is the real firmware-level sequence:
+1️⃣ OS Puts System into S3
+Before entering S3:
+•	OS saves CPU context
+•	OS programs ACPI registers
+•	Firmware saves required chipset state
+•	Firmware saves memory controller state
+•	Firmware builds an S3 resume script
+This resume script contains:
+•	MMIO writes
+•	PCI config writes
+•	MSR writes
+These are necessary to restore hardware configuration.
+2️⃣ System Enters S3
+•	CPU loses execution state
+•	DRAM remains powered
+•	Resume vector is stored in ACPI FACS table
+3️⃣ Wake Event Occurs
+Power button / USB / LAN wake.
+CPU resets and starts from reset vector (same as cold boot).
+But firmware detects:
+“This is S3 wake, not cold boot.”
+Detection is done using ACPI PM status registers.
+4️⃣ SEC Phase
+Same as cold boot:
+•	Temporary stack setup
+•	Minimal initialization
+5️⃣ PEI Phase (Special S3 Path)
+Here is where flow diverges.
+Instead of full PEI:
+•	Memory is NOT reinitialized (DRAM already contains OS state)
+•	Firmware restores memory controller registers
+•	Executes S3 Resume PEIM
+•	Runs S3 boot script (restore hardware state)
+The S3 boot script replays all saved hardware writes.
+This is critical.
+6️⃣ Jump Back to OS
+After restoring hardware:
+•	Firmware retrieves OS waking vector from FACS
+•	Transfers control directly to OS wake-up entry
+DXE and BDS are skipped.
+OS resumes exactly where it left off.
+
+
+7.explain real mode to protected mode switching steps
+what is real mode?
+Real mode is a very simple execution environment. The CPU behaves like an old 16-bit processor. Memory addressing is limited to 1 MB. There is no memory protection. There is no concept of user mode vs kernel mode. Any program can access any memory. There is no virtual memory. Segmentation exists, but in a primitive form.
+In BIOS context, the very first instruction after reset runs in real mode. The reset vector is at physical address 0xFFFFFFF0, but the CPU internally maps it using real mode segmentation logic. The BIOS code at this location starts executing in 16-bit real mode.
+ what is protected mode?
+Protected mode was introduced with the 80286 and fully expanded in the 80386. In protected mode, the CPU supports 32-bit addressing, hardware memory protection, privilege levels, segmentation with descriptor tables, and later paging. It allows operating systems to isolate processes and prevent one program from corrupting another.
+So the key difference is this: real mode is simple and unprotected; protected mode is structured and controlled. Real mode trusts everything. Protected mode enforces rules.
+In firmware development, early BIOS code starts in real mode because that is how hardware reset works. But modern firmware cannot remain in real mode for long. It needs access to more memory and better control. So it switches to protected mode very early.
+The switching process step by step in a narrative way.
+•	When the CPU starts in real mode, BIOS first performs minimal hardware setup. It sets up a temporary stack. Interrupts are usually disabled. Then the firmware prepares something called a Global Descriptor Table, or GDT.
+•	The GDT is a data structure that defines memory segments in protected mode. In real mode, segments are calculated using a simple formula: segment × 16 + offset. In protected mode, segments are defined using descriptors stored in the GDT. Each descriptor defines base address, limit, and access rights.
+•	So before switching modes, firmware must create at least a minimal GDT. Typically it defines a code segment and a data segment covering the entire memory space.
+•	Once the GDT is prepared in memory, the firmware loads its address into the GDTR register using the LGDT instruction. This tells the CPU where the protected mode segment definitions are located.
+•	After that, the firmware modifies a control register called CR0. Inside CR0 there is a bit called PE, the Protection Enable bit. While in real mode, this bit is zero. To enter protected mode, firmware sets this bit to one.
+•	The moment CR0.PE becomes 1, the CPU technically enters protected mode. However, there is an important detail: the instruction pipeline still contains real-mode instructions. So firmware immediately performs a far jump. This far jump reloads the code segment register using a selector from the GDT. That flushes the pipeline and fully activates protected mode execution.
+After that jump, the CPU is officially executing 32-bit protected mode code.
+Now the firmware loads data segment registers (DS, ES, SS, etc.) with appropriate selectors from the GDT. It sets up a proper 32-bit stack. From this point onward, it can use 32-bit instructions and access memory beyond 1 MB.
+8. How do I access CPU control registers like CR0 and debug registers in x86 architecture?
+CR0 is a control switch register inside the CPU. It controls major CPU behavior like:
+•	Are we in protected mode?
+•	Is paging enabled?
+•	Is caching enabled?
+DR registers are debug registers. They are used to set hardware breakpoints. Mostly used by debuggers.
+Now important rule:
+Normal applications (like C programs in Windows/Linux) cannot access these.
+Only firmware, kernel, or hypervisor code can access them.
+WHAT IS CR0?
+CR0 is a special CPU register.
+It contains bits like:
+•	PE bit → enables protected mode
+•	PG bit → enables paging
+•	WP bit → write protect
+•	CD bit → cache disable
+So CR0 controls how the CPU behaves.
+
+HOW TO READ CR0?
+In assembly:
+mov eax, cr0
+That means:
+“Copy value of CR0 into EAX.”
+HOW TO WRITE CR0?
+mov cr0, eax
+That means:
+“Take value in EAX and put it into CR0.”
+NOW DR REGISTERS
+DR0–DR3 → store breakpoint addresses
+DR6 → debug status
+DR7 → debug control
+To read DR0:
+mov eax, dr0
+To write DR0:
+mov dr0, eax
+
+9. different CPU segment registers and how it is used by the program
+what is a segment register?
+In x86 architecture, memory is not accessed directly just by giving an address. The CPU uses something called segmentation. A segment register holds the base reference of a memory segment. The CPU combines a segment value with an offset to calculate the final memory address.
+The important ones are:
+CS
+DS
+SS
+ES
+FS
+GS
+
+Let’s understand each one clearly.
+CS is the Code Segment register. It tells the CPU where the program instructions are located. When the CPU fetches the next instruction to execute, it uses CS together with the instruction pointer (IP or RIP). So CS + IP gives the location of the next instruction.
+DS is the Data Segment register. It is used by default when accessing normal data variables. When a program reads or writes memory, DS is usually involved.
+SS is the Stack Segment register. It is used when accessing the stack. Instructions like PUSH, POP, CALL, RET use SS along with the stack pointer (SP or ESP or RSP).
+ES is an Extra Segment register. Historically used for string operations like MOVS and STOS. It was used as a secondary data segment.
+FS and GS are additional segment registers introduced later. In modern operating systems, they are commonly used for special purposes like thread-local storage. For example, in some systems, GS points to per-CPU data.
+10. what maskable interrupts and non maskable interrupt
+what is a maskable interrupt?
+A maskable interrupt is a normal hardware interrupt that the CPU can ignore temporarily. The CPU has a flag inside a register called the Interrupt Flag (IF) inside EFLAGS/RFLAGS. When IF = 1, maskable interrupts are allowed. When IF = 0, maskable interrupts are blocked.
+In assembly, you control this using:
+CLI → Clear Interrupt flag (disable interrupts)
+STI → Set Interrupt flag (enable interrupts)
+So if firmware executes CLI, all normal hardware interrupts are temporarily disabled.
+Examples of maskable interrupts:
+Keyboard interrupt
+Timer interrupt
+Network interrupt
+Disk interrupt
+These go through the PIC (Programmable Interrupt Controller) or APIC.
+Now what is a non-maskable interrupt (NMI)?
+An NMI is a special interrupt that cannot be disabled using CLI. Even if IF = 0, NMI will still interrupt the CPU.
+It is meant for serious hardware problems.
+Examples:
+Memory parity error
+Hardware failure
+Watchdog timeout
+Serious system fault
+NMI is connected to a dedicated NMI pin on the CPU. It bypasses the normal interrupt masking logic.
+Now let’s understand why this distinction exists.
+Maskable interrupts are for normal events. Sometimes firmware or OS must temporarily disable them to avoid corruption. For example, when modifying shared data structures, interrupts are disabled to prevent race conditions.
+But some events are too critical to ignore. If memory corruption is detected, the CPU must immediately respond. That is why NMI exists.
+Now let’s see this in BIOS/UEFI context.
+During early boot, firmware often disables maskable interrupts using CLI because interrupt handlers may not yet be set up. If a timer interrupt occurs before IDT is ready, the system would crash.
+But NMI can still occur even during early boot. That’s why NMI handlers must be carefully designed.
+In UEFI, after DXE phase begins, proper interrupt handling is set up. Before that, interrupts are usually disabled.
+12. s/w smi interrupt 
+SMI means System Management Interrupt.
+It is a special interrupt that puts the CPU into System Management Mode (SMM).
+SMM is a hidden CPU mode used by firmware.
+Operating system cannot see or control it.
+When SMI occurs:
+•	CPU saves its current state.
+•	CPU switches to SMM.
+•	It executes code stored in SMRAM.
+•	After finishing, CPU restores state.
+•	OS continues as if nothing happened.
+Now let’s focus on Software SMI (S/W SMI).
+There are two types of SMI:
+Hardware SMI → triggered by hardware event (thermal, power, etc.)
+Software SMI → triggered intentionally by writing to a specific I/O port
+On both Intel and AMD x86 platforms, a Software SMI is usually triggered by writing a value to a specific I/O port. That port is defined by the chipset (PCH on Intel, FCH on AMD).
+Most common default port is:
+0xB2 (APM control port)
+When firmware or OS writes a value to port 0xB2:
+out 0xB2, AL
+The chipset generates an SMI signal to the CPU.
+CPU then:
+•	Switches to SMM
+•	Jumps to SMM handler entry point
+•	Executes SMI handler
+•	Returns using RSM instruction
+Now let’s separate Intel and AMD behavior.
+For Intel:
+•	SMI is routed through PCH.
+•	Writing to APM port (usually 0xB2) triggers SMI.
+•	SMM base address stored in SMBASE.
+•	SMI handler located in SMRAM.
+•	After SMI, CPU executes RSM to resume.
+For AMD:
+Concept is very similar.
+•	Writing to SMI command port (often also 0xB2, but chipset dependent).
+•	FCH generates SMI.
+•	CPU enters SMM.
+•	Executes handler in SMRAM.
+•	Returns with RSM.
+Architecturally, SMM behavior is defined by x86 spec, so Intel and AMD are very similar here. The difference is mainly in chipset registers and configuration.
+13.what is TSEG?
+TSEG stands for Top of Memory Segment.
+It is a reserved memory region used for SMRAM (System Management RAM).
+Now step back.
+SMM (System Management Mode) needs a protected memory area where its code and data live. That memory must be:
+•	Hidden from the OS
+•	Protected from normal software
+•	Only accessible while CPU is in SMM
+That protected memory area is called SMRAM.
+On most Intel and AMD platforms, one common way to implement SMRAM is by reserving a region at the top of physical memory. That region is called TSEG.
+Now let’s explain technically in BIOS/UEFI context.
+During early boot (usually PEI phase):
+•	Firmware decides how much memory to reserve for SMM.
+•	It programs chipset registers to carve out a memory region at the top of DRAM.
+•	That region becomes TSEG.
+•	Chipset marks it as SMRAM.
+After this:
+•	Normal code (ring 0, OS, drivers) cannot access TSEG.
+•	Even if they try, access will be blocked.
+•	Only when CPU enters SMM can that region be accessed.
+So physically, TSEG is just DRAM.
+But logically, it is protected and special.
+Now how does it work internally?
+When system boots:
+Total memory might be 8 GB.
+Firmware says:
+“I will reserve last 8 MB for SMM.”
+So if memory ends at address X,
+TSEG base = X - 8MB.
+Chipset registers are programmed with:
+•	TSEG base address
+•	TSEG size
+•	Lock bit
+Once locked, OS cannot change it.
+
+14. what's happening while shutting down the system
+When you press “Shut Down” in the operating system, the firmware is not actively running. The OS is in control at that time. Firmware already finished its job during boot.
+Now let’s see what actually happens.
+When you click shutdown, the operating system starts a controlled termination process. It begins by stopping user applications. Programs are asked to close properly. If they don’t respond, the OS forces them to terminate.
+Then the OS flushes file system buffers. This means it writes any cached data from RAM to disk. This prevents data corruption. If this step is skipped (like sudden power loss), files can get corrupted.
+After that, the OS stops system services and kernel subsystems. Drivers are notified that shutdown is happening. Network drivers disconnect. Storage drivers complete pending operations. USB devices are told to power down.
+Once software is fully stopped, the OS prepares to turn off hardware.
+Now here is where firmware-related mechanisms come in.
+Modern systems use ACPI (Advanced Configuration and Power Interface). ACPI defines power states like:
+S0 → fully on
+S3 → sleep
+S4 → hibernate
+S5 → soft off
+Shutdown means entering S5 state.
+The OS writes specific values into ACPI power management registers (in the chipset). These registers are defined in ACPI tables provided by firmware during boot.
+When the OS writes the S5 value to the PM control register, the chipset triggers power-off logic.
+The power supply then cuts main power rails:
+CPU power off
+DRAM power off
+Devices powered down
+Only minimal standby power remains (so power button can work).
+Now let’s simplify everything.
+Think of shutdown like closing a factory.
+Step 1: Workers (applications) leave.
+Step 2: Machines (drivers) are turned off properly.
+Step 3: Manager (OS) locks the building.
+Step 4: Electricity to main systems is cut.
+Firmware does not actively “run shutdown.” It only provided ACPI instructions earlier. The OS follows those instructions to power off.
+15. explain about s3 resume and s3 sleep.
+S3 sleep and S3 resume are two parts of the same process.
+S3 = Suspend to RAM.
+WHAT IS S3 SLEEP?
+S3 sleep means:
+•	CPU power is turned off.
+•	Most chipset logic is powered down.
+•	Devices are powered off.
+•	DRAM remains powered.
+•	OS memory contents stay intact.
+So the system looks “off”, but RAM still contains everything.
+Now what happens when you press Sleep in OS?
+Step 1:
+OS tells applications to pause.
+Step 2:
+OS saves CPU context and device state into RAM.
+Step 3:
+OS programs ACPI registers to request S3 state.
+Step 4:
+Firmware SMM may save some platform hardware state.
+Step 5:
+Chipset cuts power to CPU and most components.
+Only RAM is kept alive.
+System is now in S3 sleep.
+Very important:
+Execution stops completely. CPU is not running code.
+NOW WHAT IS S3 RESUME?
+When you press power button or move mouse:
+A wake event happens.
+CPU receives reset.
+Here is something very important:
+CPU starts from reset vector — same as cold boot.
+But this is NOT normal boot.
+Firmware detects that this is an S3 wake, not cold boot. It checks ACPI power management status registers.
+Then the flow changes.
+Instead of doing full boot (SEC → PEI → DXE → BDS):
+Firmware takes special S3 resume path.
+What happens in S3 resume:
+•	Memory is NOT reinitialized (because RAM contains OS state).
+•	Firmware restores memory controller registers.
+•	Firmware runs S3 resume PEIM.
+•	Firmware executes S3 boot script (this replays saved hardware register writes).
+•	Firmware retrieves OS wake vector from ACPI FACS table.
+•	Control jumps directly back to OS.
+OS continues exactly where it stopped.
+Programs continue as if nothing happened.
+16.Explain about CPU power states - p states and c states and also about device power states.
+The big picture:
+•	C-states → CPU idle states
+•	P-states → CPU performance states
+•	Device power states (D-states) → individual device power control
+CPU P-STATES (Performance States)
+P-states control CPU speed and voltage.
+When the system is running (S0 state), the CPU does not always need full speed. If you are just reading a document, full frequency is unnecessary. So the CPU reduces frequency and voltage to save power.
+That is P-state control.
+P0 = highest performance (max frequency, max voltage)
+P1, P2, P3… = progressively lower performance levels
+Lower P-state number means higher performance.
+In simple terms:
+P-states control how fast the CPU runs.
+When workload increases, CPU moves to P0.
+When workload is light, CPU moves to lower P-states.
+This transition is managed by:
+•	OS power management
+•	ACPI tables provided by firmware
+•	Modern hardware autonomous control (like Intel Speed Shift or AMD CPPC)
+Very important distinction:
+P-states change performance while CPU is actively running instructions.
+CPU C-STATES (Idle States)
+C-states control how deeply the CPU sleeps when idle.
+If CPU has nothing to execute, instead of spinning uselessly, it enters an idle state.
+C0 = active state (CPU executing instructions)
+C1 = light sleep
+C2 = deeper sleep
+C3, C6, C7… = progressively deeper sleep
+Higher C-state number means deeper sleep and lower power.
+In deeper C-states:
+•	Parts of CPU are powered down
+•	Clock may stop
+•	Cache may be flushed
+•	Voltage may reduce
+But deeper C-states take longer to wake up.
+So tradeoff:
+Shallow C-state → fast wakeup, less power saving
+Deep C-state → slow wakeup, more power saving
+In simple terms:
+C-states control how deeply CPU sleeps when it has no work.
+CLEAR DIFFERENCE BETWEEN P AND C
+P-state → CPU is working, adjust speed
+C-state → CPU is idle, go to sleep
+Many beginners confuse this.
+DEVICE POWER STATES (D-STATES)
+Now we talk about devices like:
+USB controller
+PCIe device
+Network card
+Storage controller
+Each device has its own power states defined by ACPI:
+D0 = fully on
+D1 = low power (optional)
+D2 = deeper low power (optional)
+D3 = off
+D3 is divided into:
+D3hot → powered but inactive
+D3cold → completely powered off
+So device power states are independent of CPU states.
+Example:
+CPU may be in C0 running code.
+Network card may be in D3 (off).
+Or:
+CPU in C6 (deep idle).
+Storage controller still in D0.
+They are managed separately.
+17. difference between smi and sci
+SMI (System Management Interrupt)
+1.	SMI is a highest-priority, non-maskable interrupt delivered to the CPU.
+When triggered, the processor immediately switches into System Management Mode (SMM), an isolated execution mode invisible to the operating system.
+2.	SMI is handled entirely by firmware, not the OS.
+The OS cannot see, block, or manage SMI execution. Control transfers to the SMM handler located in SMRAM, executes firmware code, and then returns to the interrupted context.
+3.	SMI uses a separate memory region called SMRAM.
+This memory is protected and inaccessible in normal OS mode. This isolation ensures firmware control over critical hardware functions.
+4.	SMI is typically triggered by hardware events or chipset logic.
+Examples include thermal events, legacy USB emulation, power button logic (on older systems), or chipset-specific conditions.
+5.	SMI is often used for low-level platform management tasks.
+It may handle fan control, BIOS emulation, secure firmware services, or chipset configuration changes.
+6.	SMI execution pauses the OS completely.
+While in SMM, the OS scheduler and interrupts are effectively frozen. Excessive SMI usage causes latency spikes and performance issues.
+7.	SMI is platform-specific and not standardized by ACPI for OS control.
+Although ACPI firmware may internally rely on SMM, the OS does not directly interact with SMI mechanisms.
+🔷 SCI (System Control Interrupt)
+1.	SCI is a standard, maskable interrupt used by ACPI for OS communication.
+It is delivered like a normal interrupt (usually mapped to IRQ 9 or an IOAPIC line).
+2.	SCI is handled by the operating system’s ACPI driver.
+The OS installs an interrupt handler that processes ACPI events and executes AML methods defined in ACPI tables.
+3.	SCI is enabled via the SCI_EN bit in the PM1 control register.
+Once set, the platform enters ACPI mode and the OS assumes responsibility for power management.
+4.	SCI is triggered by ACPI-defined events.
+These include power button presses, sleep button presses, RTC wake alarms, thermal notifications, and General Purpose Events (GPEs).
+5.	SCI works together with ACPI event registers.
+When an event occurs, status bits in PM1_EVT or GPE_STS are set, and SCI is asserted to notify the OS.
+6.	SCI allows the OS to run AML control methods such as _Lxx or _Exx.
+These methods define platform behavior like entering sleep states or reacting to hardware events.
+7.	SCI is visible and controllable by the OS.
+It follows standard interrupt routing and can be masked, prioritized, and handled like other system interrupts.
+18. difference b/w dsdt and ssdt
+DSDT (Differentiated System Description Table)
+1.	DSDT is the primary ACPI definition table.
+It contains the main AML (ACPI Machine Language) code describing the platform’s devices, power states, thermal zones, and control methods.
+2.	There is only one DSDT in a system.
+The FADT (Fixed ACPI Description Table) points to exactly one DSDT.
+3.	DSDT defines the base hardware namespace.
+It typically includes:
+o	Device objects (PCI, USB, EC, etc.)
+o	Power methods like _S3, _S5
+o	Control methods like _PTS, _WAK
+o	Thermal and battery logic
+4.	DSDT is mandatory for ACPI operation.
+Without it, the OS cannot build the ACPI namespace.
+5.	DSDT is loaded during ACPI initialization and remains static.
+It defines the foundational ACPI structure for the system.
+🔷 SSDT (Secondary System Description Table)
+1.	SSDT is an auxiliary ACPI table used to extend or modify the namespace.
+It also contains AML code but supplements the DSDT.
+2.	There can be multiple SSDTs in a system.
+The RSDT/XSDT may reference many SSDTs.
+3.	SSDTs are commonly used for modular features.
+Typical uses:
+o	CPU P-state definitions
+o	CPU C-state definitions
+o	Dynamic device configuration
+o	Docking support
+o	Platform-specific feature blocks
+4.	SSDTs allow dynamic or conditional ACPI content.
+Firmware may load different SSDTs depending on:
+o	CPU model
+o	Platform SKU
+o	Hardware configuration
+5.	SSDTs are often generated at runtime by firmware.
+For example, CPU power management tables are frequently built dynamically based on detected processor capabilities.
+19. d/w ENABLE, CONTROL AND STATUS REGISTERS IN ACPI EVENT
+Status Registers (Event Detection Layer)
+Status registers indicate that an event has already occurred.
+These registers are hardware-set. The firmware or OS does not set these bits directly when the event happens — hardware does.
+For example, in PM1 status register (PM1_STS):
+•	PWRBTN_STS → Set when power button is pressed
+•	RTC_STS → Set when RTC alarm fires
+•	WAK_STS → Set after system wake
+Key characteristics:
+1.	They are event flags.
+2.	Bits are typically write-1-to-clear (W1C).
+3.	If not cleared, the system may repeatedly generate SCI.
+4.	They reflect past events, not permissions.
+In short, Status registers answer:
+“Did something happen?”
+🔷 2️⃣ Enable Registers (Interrupt Permission Layer)
+Enable registers determine whether a particular event is allowed to generate an SCI.
+For every status bit, there is typically a corresponding enable bit.
+For example, in PM1 enable register (PM1_EN):
+•	PWRBTN_EN → Allows power button to trigger SCI
+•	RTC_EN → Allows RTC alarm to trigger SCI
+Key characteristics:
+1.	These bits are set or cleared by firmware or OS.
+2.	They do not indicate that an event occurred.
+3.	They only allow or block interrupt signaling.
+An event can occur (Status bit set), but if Enable bit is 0:
+→ No SCI is generated.
+In short, Enable registers answer:
+“Should this event notify the OS?”
+🔷 3️⃣ Control Registers (Action / State Transition Layer)
+Control registers are different from event registers. They are used to command hardware behavior, not to detect events.
+Example: PM1 Control Register (PM1_CNT)
+Important fields:
+•	SLP_TYP → Select sleep state
+•	SLP_EN → Trigger sleep transition
+•	SCI_EN → Enable ACPI mode
+Key characteristics:
+1.	These registers are written intentionally by OS or firmware.
+2.	They do not reflect events.
+3.	They initiate hardware operations.
+For example:
+Writing SLP_TYP + SLP_EN triggers S3 entry.
+In short, Control registers answer:
+“What should the hardware do now?”
+20.What ARE THE KEYWORDS USED IN VFR FILES AND HOW TO USE IT.
+What is a VFR File?
+A VFR file defines:
+•	HII Formsets
+•	Forms
+•	Questions
+•	VarStores
+•	UI layout logic
+It compiles into IFR (Internal Forms Representation), which the UEFI browser interprets.
+🔷 Core Keywords Used in VFR Files
+I’ll group them logically instead of dumping random tokens.
+1️⃣ Formset Level Keywords
+These define the overall form container.
+🔹 formset
+Defines a collection of forms.
+Example usage:
+formset
+  guid  = MY_FORMSET_GUID,
+  title = STRING_TOKEN(STR_TITLE),
+  help  = STRING_TOKEN(STR_HELP);
+You must define:
+•	GUID
+•	Title string
+•	Help string
+Only one formset block per VFR file typically.
+🔹 classguid
+Used inside formset to define form class (like Setup, FrontPage, etc.).
+2️⃣ VarStore Keywords
+These connect UI to backend variables.
+🔹 varstore
+Defines a structure stored in NVRAM or driver memory.
+varstore MY_DATA,
+  name = MyData,
+  guid = MY_VARSTORE_GUID;
+The structure must exist in C code.
+🔹 efivarstore
+Used if binding directly to UEFI variables.
+
+3️⃣ Form Definition Keywords
+🔹 form
+Defines an actual page.
+form formid = 1,
+     title = STRING_TOKEN(STR_PAGE_TITLE);
+You can have multiple forms inside a formset.
+🔹 subtitle
+Adds text grouping in a form.
+4️⃣ Question / Control Keywords
+These define interactive elements.
+🔹 numeric
+Used for integer input.
+numeric
+  questionid = 1,
+  varid      = MyData.Value,
+  prompt     = STRING_TOKEN(STR_PROMPT),
+  minimum    = 0,
+  maximum    = 100;
+🔹 checkbox
+Boolean input.
+🔹 oneof
+Dropdown selection list.
+Must contain option entries.
+oneof
+  questionid = 2,
+  varid      = MyData.Mode,
+  prompt     = STRING_TOKEN(STR_MODE)
+{
+  option text = STRING_TOKEN(STR_OPT1), value = 0;
+  option text = STRING_TOKEN(STR_OPT2), value = 1;
+}
+
+🔹 string
+Text input field.
+🔹 action
+Button-like control that triggers callback.
+5️⃣ Control Flow Keywords (Very Important)
+These allow conditional display logic.
+🔹 suppressif
+Hides controls when condition true.
+suppressif MyData.Value == 0;
+  checkbox ...
+endif;
+🔹 grayoutif
+Disables control (visible but not editable).
+🔹 disableif
+Similar to grayout but stronger condition.
+🔹 inconsistentif
+Used for validation.
+6️⃣ Event and Callback Keywords
+🔹 callback
+Marks question to trigger C callback function.
+You must handle it in:
+EFI_HII_CONFIG_ACCESS_PROTOCOL
+7️⃣ Structural Keywords
+🔹 endform
+🔹 endif
+🔹 endformset
+Used to close blocks.
+
+21. Explain about CPU flags.
+What CPU Flags Actually Are
+CPU flags are individual status and control bits stored inside a special register called the FLAGS register in 16-bit mode, EFLAGS in 32-bit mode, and RFLAGS in 64-bit mode on the x86 architecture. These bits are automatically modified by the processor after arithmetic, logical, comparison, or control instructions execute. They reflect the outcome of operations and sometimes alter the way subsequent instructions behave.
+Think of flags as the processor’s internal condition memory. After an operation completes, the CPU records whether the result was zero, negative, overflowed, or caused a carry. Later instructions, especially conditional jumps, read those flags to decide what to do next
+Carry Flag (CF)
+The Carry Flag indicates an unsigned overflow condition. It becomes set when an arithmetic operation produces a carry out of the most significant bit (in addition) or requires a borrow (in subtraction).
+This flag is essential for:
+•	Unsigned comparisons
+•	Multi-precision arithmetic (e.g., adding 128-bit numbers using 64-bit registers)
+•	Low-level crypto and big-integer math
+For unsigned comparisons, the processor relies heavily on CF. Instructions like JB (Jump if Below) directly test the Carry Flag.
+If you understand only one arithmetic flag for unsigned math, it should be CF.
+2️⃣ Zero Flag (ZF)
+The Zero Flag is set when the result of an operation is exactly zero.
+It is the backbone of equality testing. After CMP or SUB, if both operands are equal, ZF becomes 1. Conditional jumps like JE (Jump if Equal) and JNE depend on it.
+Almost every loop, condition check, or comparison in compiled code ultimately depends on ZF.
+Without ZF, high-level constructs like if (a == b) would not function at machine level.
+3️⃣ Sign Flag (SF)
+The Sign Flag reflects the most significant bit of the result, which indicates whether a signed number is negative.
+It is primarily used in signed comparisons. However, by itself, it is not sufficient to detect signed overflow — that’s where the Overflow Flag becomes critical.
+SF becomes meaningful when interpreted together with OF.
+4️⃣ Overflow Flag (OF)
+The Overflow Flag indicates a signed overflow condition.
+It is set when the signed result of an arithmetic operation exceeds the representable range. For example:
+•	Adding two large positive numbers and getting a negative result
+•	Adding two negative numbers and getting a positive result
+OF is essential for signed arithmetic correctness and is used in signed conditional jumps like JG and JL.
+CF handles unsigned overflow.
+OF handles signed overflow.
+Confusing the two leads to incorrect comparisons.
+5️⃣ Interrupt Flag (IF)
+The Interrupt Flag controls whether maskable hardware interrupts are enabled.
+If IF = 1 → interrupts are allowed.
+If IF = 0 → interrupts are disabled.
+This flag is critical in:
+•	Operating system kernels
+•	Firmware (UEFI, BIOS)
+•	Critical sections
+•	Interrupt handlers
+Instructions CLI (clear interrupt flag) and STI (set interrupt flag) modify it.
+Improper handling of IF can freeze a system or cause race conditions.
+In system-level programming, IF is one of the most sensitive flags.
+6️⃣ Direction Flag (DF)
+The Direction Flag controls the direction of string operations.
+If DF = 0 → memory pointers increment (forward direction).
+If DF = 1 → memory pointers decrement (backward direction).
+It affects instructions like:
+•	MOVS
+•	CMPS
+•	STOS
+•	LODS
+In modern code, DF is almost always cleared, but forgetting to clear it before string operations can corrupt memory.
+22. what is IDT table
+What the IDT Actually Is
+The Interrupt Descriptor Table is a processor-maintained table of interrupt handlers. It tells the CPU:
+“If interrupt or exception number X occurs, jump to this specific handler.”
+The CPU does not hardcode interrupt handler addresses. Instead, it looks them up in the IDT.
+So the IDT is essentially a mapping between interrupt vectors and handler entry points.
+2️⃣ Why the IDT Exists
+Modern CPUs must respond to:
+•	Hardware interrupts (keyboard, timer, network)
+•	Software interrupts (int 0x80)
+•	Processor exceptions (divide-by-zero, page fault, general protection fault)
+Each of these events has a vector number (0–255).
+The IDT provides the handler address for each vector.
+Without the IDT:
+•	Exceptions would crash the system instantly
+•	Hardware interrupts could not be processed
+•	Operating systems could not function
+3️⃣ Structure of the IDT
+The IDT contains up to 256 entries.
+Each entry is called an Interrupt Descriptor.
+Each descriptor includes:
+•	The address of the interrupt handler
+•	The segment selector
+•	The gate type (interrupt gate, trap gate, task gate)
+•	Privilege level information
+•	Present bit
+In 64-bit mode, each entry is 16 bytes.
+The table location is stored in a special CPU register called:
+IDTR (Interrupt Descriptor Table Register)
+The OS loads the IDTR using:
+LIDT instruction
+4️⃣ How the CPU Uses the IDT
+When an interrupt occurs:
+1.	CPU gets the interrupt vector number.
+2.	CPU multiplies vector number by descriptor size.
+3.	CPU reads the corresponding IDT entry.
+4.	CPU switches privilege level if needed.
+5.	CPU jumps to the handler address.
+6.	CPU pushes return state (RIP, CS, RFLAGS, etc.) onto stack.
+After handler finishes:
+•	IRET instruction restores previous state.
+5️⃣ Types of Events Handled by IDT
+The IDT handles three categories:
+Processor Exceptions (Vectors 0–31)
+Examples:
+•	Divide by zero
+•	Page fault
+•	Invalid opcode
+•	General protection fault
+•	Double fault
+These are generated internally by the CPU.
+23. WHAT ARE CPU REGISTERS AVAIALBALE
+General Purpose Registers (GPRs)
+These are the primary working registers used for arithmetic, logic, data movement, and function calls.
+In 64-bit mode, there are 16 general-purpose registers:
+RAX
+RBX
+RCX
+RDX
+RSI
+RDI
+RBP
+RSP
+R8
+R9
+R10
+R11
+R12
+R13
+R14
+R15
+Each register is 64 bits wide.
+They also have smaller accessible parts:
+For example, RAX can be accessed as:
+•	EAX (lower 32 bits)
+•	AX (lower 16 bits)
+•	AH / AL (upper/lower 8 bits of AX)
+These registers are used for:
+•	Arithmetic operations
+•	Function arguments
+•	Return values
+•	Stack frame management
+•	Loop counters
+•	Temporary storage
+RSP is special because it is the stack pointer.
+RBP is commonly used as a frame pointer.
+________________________________________
+2️⃣ Instruction Pointer Register
+RIP (Instruction Pointer)
+This register holds the address of the next instruction to execute.
+It is automatically updated by the CPU.
+In 64-bit mode, RIP also supports RIP-relative addressing, which is important for position-independent code.
+________________________________________
+3️⃣ FLAGS Register
+RFLAGS
+This register contains condition and control flags.
+Important flags include:
+CF – Carry Flag
+ZF – Zero Flag
+SF – Sign Flag
+OF – Overflow Flag
+IF – Interrupt Enable Flag
+DF – Direction Flag
+It controls arithmetic results, branching decisions, and interrupt handling.
+________________________________________
+4️⃣ Segment Registers
+CS – Code Segment
+DS – Data Segment
+SS – Stack Segment
+ES – Extra Segment
+FS
+GS
+In modern 64-bit mode:
+•	Segmentation is mostly disabled
+•	Only FS and GS are actively used (often for thread-local storage or kernel structures)
+CS still defines privilege level.
+________________________________________
+5️⃣ Control Registers
+These are extremely important in OS and firmware development.
+CR0
+CR2
+CR3
+CR4
+CR8 (in 64-bit mode)
+CR0:
+Controls enabling protected mode, paging, etc.
+CR2:
+Holds faulting address during page fault.
+CR3:
+Holds page table base address.
+CR4:
+Controls advanced CPU features (PAE, SMEP, SMAP, etc.)
+CR8:
+Controls interrupt priority (used with APIC).
+These registers are accessible only in privileged mode (ring 0).
+________________________________________
+6️⃣ Debug Registers
+DR0
+DR1
+DR2
+DR3
+DR6
+DR7
+Used for hardware breakpoints.
+DR0–DR3 store breakpoint addresses.
+DR6 reports debug status.
+DR7 controls breakpoint behavior.
+Used by debuggers and kernel-level tools.
+________________________________________
+7️⃣ System Descriptor Registers
+GDTR – Global Descriptor Table Register
+IDTR – Interrupt Descriptor Table Register
+LDTR – Local Descriptor Table Register
+TR – Task Register
+These store addresses of system tables.
+GDTR → Points to GDT
+IDTR → Points to IDT
+Loaded using LGDT and LIDT instructions.
+________________________________________
+8️⃣ Model Specific Registers (MSRs)
+These are special registers accessed via:
+RDMSR
+WRMSR
+Examples:
+•	IA32_EFER (enables long mode)
+•	APIC base register
+•	Performance monitoring registers
+These are CPU-specific and used heavily in firmware and kernel code.
+________________________________________
+9️⃣ SIMD / Floating Point Registers
+Modern CPUs also provide:
+XMM0–XMM15 (128-bit registers)
+YMM0–YMM15 (256-bit, AVX)
+ZMM0–ZMM31 (512-bit, AVX-512)
+Used for:
+•	Floating-point operations
+•	Vectorized computations
+•	High-performance workloads
+There are also legacy FPU registers (ST0–ST7) from x87.
+________________________________________
+🔟 Task and Privilege Registers
+These include internal registers like:
+TSS (Task State Segment structure in memory)
+CPL (Current Privilege Level derived from CS)
+Used for privilege transitions and stack switching.
+23. WHAT IS GCD SERVICES
+What GCD (Global Coherency Domain) Means
+In firmware context, the Global Coherency Domain represents the system-wide address space where:
+•	All CPUs
+•	All bus masters
+•	All DMA-capable devices
+see a consistent memory and I/O mapping.
+It defines the global physical memory and I/O resource map of the platform.
+So GCD is basically:
+The firmware-managed model of all physical memory and I/O resources in the system.
+________________________________________
+2️⃣ What GCD Services Are
+GCD Services are a set of firmware APIs provided by the DXE Core in EDK2 that manage:
+•	System memory space
+•	MMIO space
+•	I/O port space
+They track what regions exist, which ones are allocated, and how they are attributed.
+These services are available during the DXE phase only.
+________________________________________
+3️⃣ Why GCD Services Exist
+Multiple drivers during DXE may request:
+•	MMIO regions
+•	I/O port ranges
+•	Memory-mapped device space
+Without centralized tracking, resource conflicts would occur.
+GCD ensures:
+•	No overlapping allocations
+•	Proper attribute tracking
+•	Correct ownership
+It acts like a firmware-level resource manager before ExitBootServices.
+________________________________________
+4️⃣ What GCD Manages
+There are two main resource types:
+Memory Space
+I/O Space
+Memory space includes:
+•	DRAM
+•	MMIO ranges
+•	Reserved memory
+•	Runtime memory
+I/O space includes:
+•	Legacy I/O ports
+•	Device I/O regions
+________________________________________
+5️⃣ Key GCD Services APIs (Conceptually)
+These are internal DXE services (not Boot Services).
+Examples include:
+AllocateMemorySpace
+FreeMemorySpace
+AddMemorySpace
+RemoveMemorySpace
+AllocateIoSpace
+FreeIoSpace
+SetMemorySpaceAttributes
+These manage the firmware’s internal map of available and allocated address ranges
+24. define types of C CALLING CONVENTIONS.
+Calling conventions in C define how functions receive arguments, return values, and how the call stack is managed. They ensure the caller and the callee agree on how to communicate at the machine level.
+Here’s a clear breakdown:
+________________________________________
+🔹 What a Calling Convention Controls
+1.	Order of arguments (left-to-right or right-to-left)
+2.	Where arguments are stored (stack or CPU registers)
+3.	Who cleans up the stack (caller or callee)
+4.	How return values are passed
+5.	Which registers must be preserved
+
+cdecl (C Declaration Convention)
+This is the classic C calling convention used on 32-bit x86 systems.
+In cdecl:
+The caller pushes arguments onto the stack from right to left.
+The return value is placed in EAX.
+The caller is responsible for cleaning the stack after the function call.
+Because the caller cleans the stack, cdecl supports variable-length arguments (like printf).
+This was the default convention for C programs on 32-bit Windows and Linux.
+It is still conceptually important even though 64-bit systems use different conventions.
+________________________________________
+2️⃣ stdcall (Standard Call)
+This was widely used in 32-bit Windows APIs.
+Arguments are pushed onto the stack from right to left, just like cdecl.
+Return value is placed in EAX.
+But here, the callee cleans the stack before returning.
+Because the callee removes arguments, stdcall does not support variable argument functions easily.
+Most legacy Win32 API functions use stdcall.
+________________________________________
+3️⃣ fastcall
+Designed for performance improvement in 32-bit systems.
+Instead of passing all arguments on the stack, the first few arguments are passed through registers.
+On Microsoft 32-bit fastcall:
+•	First two arguments go into ECX and EDX.
+•	Remaining arguments go on the stack.
+Return value is in EAX.
+Goal: Reduce memory access by using registers.
+________________________________________
+4️⃣ Microsoft x64 Calling Convention (Windows 64-bit)
+This is the standard convention for all 64-bit Windows applications.
+First four integer or pointer arguments are passed in registers:
+RCX
+RDX
+R8
+R9
+Floating-point arguments use XMM0–XMM3.
+Additional arguments go on the stack.
+Return value is placed in RAX.
+The caller reserves 32 bytes of shadow space on the stack before the call.
+Callee must preserve:
+RBX, RBP, RDI, RSI, R12–R15.
+This convention is used in:
+Windows kernel
+UEFI (EDK2)
+All 64-bit Windows applications
+This is extremely important in firmware development.
+________________________________________
+5️⃣ System V AMD64 Calling Convention (Linux / Unix 64-bit)
+Used by Linux, macOS, and most Unix-like systems on x86-64.
+First six integer/pointer arguments are passed in:
+RDI
+RSI
+RDX
+RCX
+R8
+R9
+Floating-point arguments use XMM0–XMM7.
+Return value is in RAX.
+Callee must preserve:
+RBX, RBP, R12–R15.
+This is different from Microsoft x64 — especially the order of registers.
+If you mix them incorrectly, your program will crash.
+________________________________________
+6️⃣ thiscall (C++ Member Functions in 32-bit)
+Used for C++ non-static member functions on 32-bit systems.
+The “this” pointer is passed in ECX.
+Other arguments go on the stack.
+Used heavily in older Windows C++ binaries.
+________________________________________
+Most Important in Real-World Systems Today
+If you’re doing:
+Windows / UEFI firmware → Microsoft x64 convention
+Linux kernel or user space → System V AMD64 convention
+Legacy 32-bit code → cdecl and stdcall
+24. HOW DOES PXE BOOT WORK
+What PXE Actually Is
+PXE stands for Preboot Execution Environment. It is a firmware-based network boot protocol originally defined by Intel. It operates before any operating system loads and relies on:
+•	Network interface firmware
+•	DHCP
+•	TFTP (or similar file transfer protocol)
+PXE is implemented either in legacy BIOS or in UEFI firmware.
+________________________________________
+2️⃣ High-Level Flow of PXE Boot
+The PXE boot process follows this sequence:
+System powers on
+Firmware initializes hardware
+Firmware detects PXE-capable NIC
+Firmware starts network boot sequence
+Client obtains IP configuration via DHCP
+Client downloads bootloader via TFTP
+Bootloader loads OS kernel
+Control transfers to OS
+Now let’s expand each phase.
+________________________________________
+3️⃣ Step-by-Step Detailed PXE Boot Flow
+Step 1: Firmware Initialization
+When the system powers on:
+UEFI initializes hardware
+Network card firmware is initialized
+NIC PXE stack becomes active
+In UEFI systems, this is handled via the UEFI PXE Base Code Protocol.
+________________________________________
+Step 2: DHCP Discovery
+The client broadcasts a DHCP request.
+This request includes PXE-specific options that say:
+“I want to network boot.”
+The DHCP server responds with:
+•	IP address for the client
+•	Subnet mask
+•	Gateway
+•	TFTP server IP
+•	Boot file name (e.g., pxelinux.0 or bootx64.efi)
+This is standard DHCP plus PXE options.
+________________________________________
+Step 3: TFTP Download
+After receiving DHCP response:
+The client contacts the TFTP server specified.
+It requests the boot file given in DHCP options.
+This file is usually:
+Legacy BIOS: pxelinux.0
+UEFI: bootx64.efi
+The file is downloaded into memory.
+________________________________________
+Step 4: Bootloader Execution
+The downloaded file is executed directly from memory.
+This bootloader may:
+Load configuration files
+Download additional modules
+Fetch the kernel and initramfs
+Load OS over network
+At this stage, control leaves firmware and enters the bootloader.
+________________________________________
+Step 5: OS Boot
+Bootloader loads:
+Kernel
+Initial RAM disk
+Boot parameters
+Kernel initializes network stack again and may mount a root filesystem over:
+NFS
+iSCSI
+HTTP
+Or continue loading from local disk
+System finishes boot normally.
+________________________________________
+4️⃣ Components Required for PXE
+You need:
+PXE-capable NIC
+DHCP server with PXE options
+TFTP server hosting boot files
+Bootloader (like iPXE, GRUB, pxelinux)
+Without any of these, PXE boot fails.
+________________________________________
+5️⃣ BIOS PXE vs UEFI PXE
+In BIOS PXE:
+Real-mode environment
+Uses legacy PXE ROM
+Boots 16-bit or 32-bit loaders
+In UEFI PXE:
+Uses UEFI network stack
+Boots EFI applications
+More secure and modern
+Modern systems use UEFI PXE.
+

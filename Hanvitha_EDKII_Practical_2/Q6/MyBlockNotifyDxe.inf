@@ -1,0 +1,26 @@
+[Defines]
+  INF_VERSION            = 0x00010005
+  BASE_NAME              = MyBlockNotifyDxe
+  FILE_GUID              = B8B55A42-8901-4CE6-A7E9-3D805792F67E
+  MODULE_TYPE            = DXE_DRIVER
+  VERSION_STRING         = 1.0
+  ENTRY_POINT            = MyBlockNotifyDxeEntry
+
+[Sources]
+  MyBlockNotifyDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  UefiDriverEntryPoint
+  UefiLib
+  DebugLib
+  DevicePathLib
+
+[Protocols]
+  gEfiBlockIoProtocolGuid
+  gEfiDevicePathProtocolGuid
+
+[Depex]
+  gEfiBlockIoProtocolGuid

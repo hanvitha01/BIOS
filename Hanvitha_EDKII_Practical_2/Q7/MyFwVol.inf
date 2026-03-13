@@ -1,0 +1,28 @@
+[Defines]
+  INF_VERSION    = 0x00010005
+  BASE_NAME      = FvFreeSpaceDxe
+  FILE_GUID      = FE293DDB-F5E4-4E7F-A174-98565914D127
+  MODULE_TYPE    = DXE_DRIVER
+  VERSION_STRING = 1.0
+  ENTRY_POINT    = FvFreeSpaceDxeEntry
+
+[Sources]
+  MyFwVol.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  OvmfPkg/OvmfPkg.dec
+
+[LibraryClasses]
+  UefiDriverEntryPoint
+  UefiBootServicesTableLib
+  UefiLib
+  DebugLib
+  BaseMemoryLib
+  MemoryAllocationLib
+
+[Protocols]
+  gEfiFirmwareVolumeBlockProtocolGuid
+
+[Depex]
+  TRUE

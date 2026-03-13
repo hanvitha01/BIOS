@@ -1,0 +1,23 @@
+#langdef en-US "English"
+
+#string STR_FORM_TITLE     #language en-US "System Date and Time"
+#string STR_FORM_HELP      #language en-US "View and modify system RTC date and time"
+
+#string STR_CURRENT_TIME   #language en-US "Current RTC Information"
+
+#string STR_DATE_PROMPT    #language en-US "System Date"
+#string STR_DATE_HELP      #language en-US "Modify the system date"
+
+#string STR_TIME_PROMPT    #language en-US "System Time"
+#string STR_TIME_HELP      #language en-US "Modify the system time"
+
+#string STR_AUTO_REFRESH_PROMPT    #language en-US "Enable Auto-Refresh"
+#string STR_AUTO_REFRESH_HELP      #language en-US "Check this to keep the time updating every second. Uncheck it to edit the time manually."
+
+#string STR_ENABLE_REFRESH_PROMPT  #language en-US "Enable PCD Refresh"
+#string STR_ENABLE_REFRESH_HELP    #language en-US "Check this to enable the refresh button."
+
+#string STR_REFRESH_NOW_PROMPT     #language en-US "Refresh Now"
+#string STR_REFRESH_NOW_HELP       #language en-US "Click to manually fetch the latest RTC time."
+
+#string STR_NULL_STRING                #language en-US ""

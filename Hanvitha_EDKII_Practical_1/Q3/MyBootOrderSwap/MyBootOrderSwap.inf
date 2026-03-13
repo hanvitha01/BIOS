@@ -1,0 +1,21 @@
+[Defines]
+  INF_VERSION    = 0x00010005
+  BASE_NAME      = MyBootOrderSwap
+  FILE_GUID      = A1234567-89AB-CDEF-0123-456789ABCDEF
+  MODULE_TYPE    = UEFI_APPLICATION
+  ENTRY_POINT    = UefiMain
+
+[Sources]
+  MyBootOrderSwap.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  UefiApplicationEntryPoint
+  UefiLib
+  UefiBootServicesTableLib
+  UefiRuntimeServicesTableLib
+  MemoryAllocationLib
+
+

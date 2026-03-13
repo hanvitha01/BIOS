@@ -1,0 +1,29 @@
+[Defines]
+  INF_VERSION    = 0x00010005
+  BASE_NAME      = DriverEnumApp
+  FILE_GUID      = 6EC42139-5D87-4027-A62C-358387FE2848
+  MODULE_TYPE    = UEFI_APPLICATION
+  VERSION_STRING = 1.0
+  ENTRY_POINT    = UefiMain
+
+[Sources]
+  MyDriver_ListApp.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  UefiLib
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  BaseLib
+  BaseMemoryLib
+  MemoryAllocationLib
+  DevicePathLib
+  PrintLib
+
+[Protocols]
+  gEfiDriverBindingProtocolGuid
+  gEfiLoadedImageProtocolGuid
+  gEfiComponentNameProtocolGuid
+  gEfiComponentName2ProtocolGuid

@@ -1,0 +1,51 @@
+## @file
+#  Device Manager Library used by UiApp
+#
+#  Copyright (c) 2011 - 2018, Intel Corporation. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+##
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = DateTimeSetup
+  MODULE_UNI_FILE                = DateTimeForms.uni
+  FILE_GUID                      = 641DFE03-64CC-4335-8058-CB0032636D31
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = NULL|DXE_DRIVER UEFI_APPLICATION
+  CONSTRUCTOR                    = DateTimeSetupConstructor
+  DESTRUCTOR                     = DateTimeSetupDestructor
+
+[Sources]
+  DateTimeSetup.c
+  DateTimeSetup.h
+  DateTimeForms.vfr
+  DateTimeNvData.h
+  DateTimeForms.uni
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  OvmfPkg/OvmfPkg.dec
+
+[LibraryClasses]
+  BaseLib
+  UefiBootServicesTableLib
+  UefiRuntimeServicesTableLib
+  HiiLib
+  UefiHiiServicesLib
+  MemoryAllocationLib
+  BaseMemoryLib
+  DebugLib
+  DevicePathLib             
+  PcdLib              # <--- ADDED: Required so the C code can use PcdGetBool
+
+[Guids]
+  gEfiHiiPlatformSetupFormsetGuid
+  gEfiIfrTianoGuid
+
+[Pcd]
+  gUefiOvmfPkgTokenSpaceGuid.PcdEnableDateTimeRefresh  # <--- ADDED: Tells compiler to generate the macro
+
+[Protocols]
+  gEfiHiiConfigAccessProtocolGuid
